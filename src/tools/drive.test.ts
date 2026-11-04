@@ -1,7 +1,7 @@
 /**
  * Tests for `drive_upload_file`, the first Drive tool with registrar
  * coverage (the rest of the Drive/Slides/Docs/Sheets family still ships
- * without one; see docs/ROADMAP.md).
+ * without one).
  *
  * End-to-end over the real MCP round-trip (Client → SDK → defineTool →
  * handler → mock Drive client), mirroring `calendar.test.ts`. The Drive

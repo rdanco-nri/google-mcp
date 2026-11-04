@@ -130,7 +130,7 @@ describe("buildInvalidGrantPayload", () => {
     expect(payload).toEqual({
       code: "INVALID_GRANT",
       message: expect.stringContaining("Google"),
-      recovery_action: expect.stringContaining("npx @klodr/gmail-mcp auth"),
+      recovery_action: expect.stringContaining("npm run auth"),
       credential_path: "/home/alice/.gmail-mcp/credentials.json",
     });
   });

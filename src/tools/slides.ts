@@ -37,10 +37,7 @@ import { randomBytes } from "crypto";
 import type { drive_v3, slides_v1 } from "googleapis";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { defineTool, pullToolMeta as pull } from "./_shared.js";
-import {
-  SlidesCreateDeckFromOutlineSchema,
-  SlidesAppendToDeckSchema,
-} from "../tools.js";
+import { SlidesCreateDeckFromOutlineSchema, SlidesAppendToDeckSchema } from "../tools.js";
 import { asGmailApiError } from "../gmail-errors.js";
 
 interface SlideOutlineInput {
@@ -166,9 +163,7 @@ async function createAndPopulateSlides(
   for (let i = 0; i < outlines.length; i++) {
     const slideObjectId = `s_${prefix}_${i}`;
     slideObjectIds.push(slideObjectId);
-    phaseARequests.push(
-      buildCreateSlideRequest({ slideObjectId, insertionIndex: startIndex + i }),
-    );
+    phaseARequests.push(buildCreateSlideRequest({ slideObjectId, insertionIndex: startIndex + i }));
   }
   if (defaultSlideObjectIdToDelete) {
     phaseARequests.push({ deleteObject: { objectId: defaultSlideObjectIdToDelete } });
@@ -328,9 +323,7 @@ export function registerSlidesTools(
     async (args) => {
       try {
         if (args.slides.length === 0) {
-          return structuredError(
-            "slides_append_to_deck requires at least one slide in `slides`.",
-          );
+          return structuredError("slides_append_to_deck requires at least one slide in `slides`.");
         }
         // Discover current slide count so insertionIndex appends at end.
         const presResp = await slides.presentations.get({

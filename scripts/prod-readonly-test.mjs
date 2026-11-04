@@ -1,4 +1,4 @@
-// Production read-only smoke-test for gmail-mcp.
+// Production read-only smoke-test for google-mcp.
 //
 // Spawns `node dist/index.js` as a child stdio process, connects via
 // the MCP SDK's StdioClientTransport, and walks a minimum viable

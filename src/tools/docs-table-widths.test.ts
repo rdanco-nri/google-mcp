@@ -133,8 +133,30 @@ describe("estimateColWidthsPt", () => {
   });
 
   it("keeps every column at or above its floor even when the floors exceed the cap", () => {
-    const heads = ["#", "Confidence", "PR / Ticket", "Title", "Description", "Owners", "Status", "Gate", "Inventory source", "Action"];
-    const body = ["C10", "high", "PR #1757, NP-9578", "Enhanced Scheduled Tasks", "prose ".repeat(40), "Zach", "released v1.7", "feature-flagged: scheduledTaskView", "keyword-pass, body-undocumented", ""];
+    const heads = [
+      "#",
+      "Confidence",
+      "PR / Ticket",
+      "Title",
+      "Description",
+      "Owners",
+      "Status",
+      "Gate",
+      "Inventory source",
+      "Action",
+    ];
+    const body = [
+      "C10",
+      "high",
+      "PR #1757, NP-9578",
+      "Enhanced Scheduled Tasks",
+      "prose ".repeat(40),
+      "Zach",
+      "released v1.7",
+      "feature-flagged: scheduledTaskView",
+      "keyword-pass, body-undocumented",
+      "",
+    ];
     const rows = [heads, ...Array.from({ length: 12 }, () => body)];
     const { widths } = estimateColWidthsPt(rows, 10);
     const floorOf = (col: number) =>

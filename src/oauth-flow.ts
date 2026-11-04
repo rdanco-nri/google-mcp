@@ -70,7 +70,7 @@ export function readJsonBounded(absPath: string): unknown {
         base === "gcp-oauth.keys.json"
           ? "Replace with the original `gcp-oauth.keys.json` exported from Google Cloud Console (Credentials → OAuth 2.0 Client IDs)."
           : base === "credentials.json"
-            ? "Delete the file and re-run `npx @klodr/gmail-mcp auth` to regenerate a fresh credentials JSON."
+            ? "Delete the file and re-run `npm run auth` in the google-mcp folder to regenerate a fresh credentials JSON."
             : "Inspect the file for corruption.";
       throw new Error(
         `OAuth-related file at ${absPath} is ${stat.size} bytes, exceeding the ${MAX_OAUTH_FILE_BYTES}-byte cap. ${remediation}`,
@@ -221,7 +221,7 @@ export function loadCredentials(opts: LoadCredentialsOpts): LoadCredentialsResul
       // auth fails cleanly through the `asGmailApiError` path with
       // an `INVALID_GRANT`-shaped payload.
       log(
-        `Warning: OAuth keys file not found at ${opts.oauthPath} — booting in lazy-auth mode. Tool calls that need Gmail will fail until \`npx @klodr/gmail-mcp auth\` is run.`,
+        `Warning: OAuth keys file not found at ${opts.oauthPath} — booting in lazy-auth mode. Tool calls that need Gmail will fail until \`npm run auth\` is run.`,
       );
       // Empty `authorizedScopes` narrows the advertised tool surface
       // to `[]` until credentials are mounted — none of the 26 Gmail
@@ -291,9 +291,7 @@ export function loadCredentials(opts: LoadCredentialsOpts): LoadCredentialsResul
         }
         // Write back in whichever shape we found (wrapped or flat).
         const output =
-          typeof current.tokens !== "undefined"
-            ? { ...current, tokens: merged }
-            : merged;
+          typeof current.tokens !== "undefined" ? { ...current, tokens: merged } : merged;
         fs.writeFileSync(credPath, JSON.stringify(output, null, 2));
         console.error("[oauth] persisted refreshed tokens to", credPath);
       } catch (err) {
@@ -588,7 +586,7 @@ export async function authenticate(opts: AuthenticateOpts): Promise<void> {
           opts.oauth2Client.setCredentials(mergedTokens);
 
           // writeFileSync's `mode` only applies on CREATE; force
-          // `0o600` after to match `.github/SECURITY.md`.
+          // `0o600` after.
           const credentials = { tokens: mergedTokens, scopes: opts.scopes };
           fs.mkdirSync(path.dirname(opts.credentialsPath), { recursive: true, mode: 0o700 });
           fs.writeFileSync(opts.credentialsPath, JSON.stringify(credentials, null, 2), {

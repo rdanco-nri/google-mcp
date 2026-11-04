@@ -14,10 +14,6 @@
  * must be absolute; relative paths are refused with a stderr warning.
  *
  * No-op if the env var is unset — this feature is opt-in.
- *
- * Design mirrors mercury-invoicing-mcp and faxdrop-mcp so a consumer
- * aggregating audit logs across klodr/* MCPs gets one consistent
- * JSONL shape.
  */
 
 import { appendFileSync } from "node:fs";

@@ -26,9 +26,7 @@ describe("createServer", () => {
   });
 
   it("uses the VERSION constant declared in server.ts", () => {
-    // VERSION is hand-synced with package.json by scripts/sync-version.mjs.
-    // Pinning the shape here so a manual edit that drops the export
-    // (or a sync-version.mjs regression) is caught at test time.
+    // Pins the shape so an edit that drops the export is caught at test time.
     expect(VERSION).toMatch(/^\d+\.\d+\.\d+$/);
   });
 

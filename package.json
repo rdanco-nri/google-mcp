@@ -1,11 +1,12 @@
 {
-  "name": "@klodr/gmail-mcp",
+  "name": "google-mcp",
+  "private": true,
   "version": "0.35.0",
-  "description": "Gmail MCP server — scope-gated tools + attachment/download path jails + supply-chain hardening. Fork of GongRzhe/Gmail-MCP-Server via ArtyMcLabin's intermediate fork.",
+  "description": "MCP server for Gmail, Drive, Docs, Sheets, Slides, and Calendar, with scope-gated tools and path jails on attachments and downloads.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "gmail-mcp": "./dist/index.js"
+    "google-mcp": "./dist/index.js"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -17,16 +18,8 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src",
     "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "prepublishOnly": "npm run build",
-    "version": "node scripts/sync-version.mjs && git add server.json src/server.ts"
+    "format:check": "prettier --check ."
   },
-  "files": [
-    "dist",
-    "README.md",
-    "LICENSE",
-    "CHANGELOG.md"
-  ],
   "keywords": [
     "gmail",
     "mcp",
@@ -36,25 +29,21 @@
     "llm",
     "agent-tools",
     "oauth",
-    "google-gmail",
     "claude",
     "cursor",
     "typescript",
-    "nodejs"
+    "nodejs",
+    "google-drive",
+    "google-docs",
+    "google-sheets",
+    "google-slides",
+    "google-calendar"
   ],
-  "author": "klodr",
+  "author": "Rob Danco",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/klodr/gmail-mcp.git"
-  },
-  "bugs": {
-    "url": "https://github.com/klodr/gmail-mcp/issues"
-  },
-  "homepage": "https://github.com/klodr/gmail-mcp#readme",
-  "funding": "https://github.com/sponsors/klodr",
-  "publishConfig": {
-    "access": "public"
+    "url": "git+https://github.com/rdanco-nri/google-mcp.git"
   },
   "engines": {
     "node": ">=22.22.2"
@@ -71,7 +60,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@codecov/bundle-analyzer": "^2.0.1",
     "@eslint/js": "^10.0.1",
     "@types/node": "^22.19.17",
     "@types/nodemailer": "^8.0.0",
