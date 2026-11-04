@@ -7,7 +7,7 @@ import { z } from "zod";
  * Prompts are user-controlled: MCP clients like Claude Desktop surface
  * them as slash commands so a human explicitly picks one before the LLM
  * runs the underlying tool chain. Each body below deliberately names the
- * `gmail-mcp` tools the LLM should call, so the model does not have to
+ * `google-mcp` tools the LLM should call, so the model does not have to
  * re-discover the tool set every invocation.
  *
  * These prompts cover the six most common flows requested by the
@@ -19,8 +19,7 @@ import { z } from "zod";
  *   5. flag undetected spam
  *   6. unread triage with per-email recommendation
  *
- * gmail-mcp still uses the SDK's legacy `Server` API (see ROADMAP entry
- * "Migrate Server (legacy) → McpServer"), so prompts are wired via the
+ * Prompts are wired via the
  * `ListPromptsRequestSchema` / `GetPromptRequestSchema` handlers in
  * src/index.ts rather than via the higher-level `server.registerPrompt`.
  */

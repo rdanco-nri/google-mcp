@@ -24,8 +24,8 @@
  *      tool output as untrusted, but the explicit fence makes the boundary
  *      explicit and survives prompt-template processing.
  *
- * This is NOT a substitute for the read-then-write-confirmation discipline
- * documented in .github/SECURITY.md, just defense in depth.
+ * This is NOT a substitute for confirming writes before they run,
+ * just defense in depth.
  */
 
 // The regex below targets exactly the characters whose presence in tool

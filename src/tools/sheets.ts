@@ -179,7 +179,8 @@ export function registerSheetsTools(
         const fmtMeta = await sheets.spreadsheets.get({
           spreadsheetId: args.fileId,
           ranges: [`${args.tabTitle}!1:1`],
-          fields: "sheets.data.rowData.values.userEnteredFormat,sheets.data.columnMetadata.pixelSize",
+          fields:
+            "sheets.data.rowData.values.userEnteredFormat,sheets.data.columnMetadata.pixelSize",
         });
         const fmtData = fmtMeta.data.sheets?.[0]?.data?.[0];
         const headerFormats = (fmtData?.rowData?.[0]?.values ?? []).map(
@@ -235,7 +236,9 @@ export function registerSheetsTools(
         };
         const baseText = `Tab "${args.tabTitle}" overwritten: cleared ${previousRows.length} existing row(s), wrote ${result.updatedRows} new row(s) (range ${result.updatedRange ?? "unknown"}).`;
         return {
-          content: [{ type: "text", text: formatWarning ? `${baseText}\n${formatWarning}` : baseText }],
+          content: [
+            { type: "text", text: formatWarning ? `${baseText}\n${formatWarning}` : baseText },
+          ],
           structuredContent: result,
         };
       } catch (err) {

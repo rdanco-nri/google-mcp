@@ -109,7 +109,7 @@ export function isDryRun(): boolean {
  * across the dispatcher for no observable behaviour change — the
  * handlers only emit the `text` variant today.
  *
- * When handler extraction lands (ROADMAP near-term item) each case
+ * When handler extraction lands, each case
  * body becomes its own explicitly-annotated function and aligning
  * with `CallToolResult` becomes a one-line change.
  */

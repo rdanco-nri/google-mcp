@@ -21,17 +21,10 @@ export default defineConfig({
       // `StdioServerTransport`, which deadlocks the test runner
       // waiting for the next stdio frame. The orchestration the
       // shim wraps lives in `runtime.ts` and is covered there.
-      // Mirrors the `klodr/faxdrop-mcp` and `klodr/mercury-invoicing-mcp`
-      // pattern.
       exclude: [
         "src/**/*.test.ts",
         "src/**/*.d.ts",
         "src/index.ts",
-        // Vitest's `include` for tests is separate from coverage
-        // `include`; this `exclude` ensures the tempdir-driven
-        // sync-version.test.mjs (executable via `node` directly) is
-        // not measured as if it were source.
-        "scripts/**/*.test.mjs",
         // `prod-readonly-test.mjs` is a top-level smoke test that
         // spawns `dist/index.js` and walks a real Gmail token —
         // mocking it in vitest would defeat its purpose. It runs

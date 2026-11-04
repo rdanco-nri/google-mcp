@@ -40,8 +40,7 @@ export function asGmailApiError(err: unknown): GmailApiErrorView {
 /**
  * Structured payload surfaced when Google rejects the stored refresh
  * token. Clients/agents can branch on `code === "INVALID_GRANT"`
- * instead of regex-matching free-form error text. Contract defined in
- * docs/ROADMAP.md "Graceful invalid_grant handling".
+ * instead of regex-matching free-form error text.
  */
 export interface InvalidGrantPayload {
   readonly code: "INVALID_GRANT";
@@ -110,7 +109,7 @@ export function buildInvalidGrantPayload(credentialPath: string): InvalidGrantPa
     message:
       "The Gmail refresh token was rejected by Google. It was likely revoked by the user, " +
       "expired after 6 months of inactivity, or reissued elsewhere.",
-    recovery_action: "Re-run `npx @klodr/gmail-mcp auth` to reauthorise.",
+    recovery_action: "Re-run `npm run auth` in the google-mcp folder to reauthorise.",
     credential_path: credentialPath,
   };
 }

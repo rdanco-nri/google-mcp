@@ -21,11 +21,7 @@ import {
   GetPromptRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 
-// Kept in sync with package.json by scripts/sync-version.mjs (called by
-// the `npm version` lifecycle hook). Do not edit manually — bump via
-// `npm version patch|minor|major`. Mirrors the same convention used in
-// klodr/mercury-invoicing-mcp/src/server.ts:VERSION and
-// klodr/faxdrop-mcp/src/server.ts:VERSION.
+// Keep in step with package.json#version.
 export const VERSION = "0.35.0";
 
 export interface ServerOptions {
@@ -87,7 +83,7 @@ export interface ServerOptions {
 export function createServer(opts: ServerOptions): McpServer {
   const server = new McpServer(
     {
-      name: "gmail",
+      name: "google",
       version: VERSION,
     },
     {

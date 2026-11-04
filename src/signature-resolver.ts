@@ -135,7 +135,7 @@ export function _resetSignatureCache(): void {
  * back through draft_email) doesn't double-up the signature. Detection
  * is a substring check; the marker is intentionally distinctive.
  */
-export const SIGNATURE_MARKER = "data-gmail-mcp-signature=\"auto\"";
+export const SIGNATURE_MARKER = 'data-gmail-mcp-signature="auto"';
 
 /**
  * Mutates `args` in place to inject the HTML signature when one is

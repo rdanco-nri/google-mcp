@@ -22,11 +22,7 @@
  * JSON-output tools (`get_thread`, `list_inbox_threads`,
  * `get_inbox_with_threads`, `pair_recipient`) need their actual
  * emit shape pinned + a schema co-designed with the handler return
- * type — tracked under `docs/ROADMAP.md` for the next minor
- * release.
- *
- * Mirrors `klodr/mercury-invoicing-mcp` and `klodr/faxdrop-mcp`
- * once they adopt the same pattern.
+ * type.
  */
 
 import { z, type ZodRawShape } from "zod";

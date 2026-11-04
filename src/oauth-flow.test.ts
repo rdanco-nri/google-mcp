@@ -758,7 +758,7 @@ describe("readJsonBounded", () => {
     const file = join(scratch, "credentials.json");
     writeFileSync(file, "x".repeat(MAX_OAUTH_FILE_BYTES + 1));
     expect(() => readJsonBounded(file)).toThrow(
-      /exceeding the 65536-byte cap.*re-run.*npx @klodr\/gmail-mcp auth/s,
+      /exceeding the 65536-byte cap.*re-run.*npm run auth/s,
     );
   });
 

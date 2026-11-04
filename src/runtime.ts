@@ -8,9 +8,8 @@
  *
  * Extracted from `src/index.ts` so the orchestration is reachable
  * from unit tests via dependency injection (`argv`/`env`/`log`/`exit`)
- * without booting a real `StdioServerTransport`. Aligns with the
- * `klodr/faxdrop-mcp` and `klodr/mercury-invoicing-mcp` pattern
- * where `src/index.ts` collapses to a 10-line CLI shim.
+ * without booting a real `StdioServerTransport`; `src/index.ts`
+ * stays a 10-line CLI shim.
  *
  * Pure helpers exported for direct testing:
  *   - `parseCallbackArg(argv)` — finds the `http(s)://…` positional
@@ -291,7 +290,7 @@ export async function runServer(opts: RunServerOpts): Promise<void> {
       const errType = err instanceof Error ? err.constructor.name : typeof err;
       const rawLen = err instanceof Error ? err.message.length : String(err).length;
       log(
-        `[startup] getAccessToken probe failed: type=${errType}, message length=${rawLen} chars (redacted for credential safety; rerun \`npx @klodr/gmail-mcp auth\` if this persists)`,
+        `[startup] getAccessToken probe failed: type=${errType}, message length=${rawLen} chars (redacted for credential safety; rerun \`npm run auth\` if this persists)`,
       );
     }
   });

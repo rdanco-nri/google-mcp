@@ -133,7 +133,12 @@ function structuredError(message: string): {
 
 function csvEscape(cell: unknown): string {
   if (cell === null || cell === undefined) return "";
-  const s = String(cell);
+  const s =
+    typeof cell === "string"
+      ? cell
+      : typeof cell === "number" || typeof cell === "boolean"
+        ? String(cell)
+        : JSON.stringify(cell);
   if (/[",\n\r]/.test(s)) {
     return `"${s.replace(/"/g, '""')}"`;
   }
@@ -342,7 +347,12 @@ export function registerDriveTools(
               { fileId: resolvedId, mimeType: "text/markdown" },
               { responseType: "text" },
             );
-            text = typeof resp.data === "string" ? resp.data : String(resp.data ?? "");
+            text =
+              typeof resp.data === "string"
+                ? resp.data
+                : resp.data === null || resp.data === undefined
+                  ? ""
+                  : JSON.stringify(resp.data);
           } catch (mdErr) {
             const { code: mdCode, message: mdMsg } = asGmailApiError(mdErr);
             if (mdCode === 403 && /exportSizeLimitExceeded/i.test(mdMsg)) {
@@ -355,7 +365,12 @@ export function registerDriveTools(
                 { fileId: resolvedId, mimeType: "text/plain" },
                 { responseType: "text" },
               );
-              text = typeof resp.data === "string" ? resp.data : String(resp.data ?? "");
+              text =
+                typeof resp.data === "string"
+                  ? resp.data
+                  : resp.data === null || resp.data === undefined
+                    ? ""
+                    : JSON.stringify(resp.data);
               exportMime = "text/plain";
             } else {
               throw mdErr;
