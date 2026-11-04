@@ -24,6 +24,15 @@ import {
 // Keep in step with package.json#version.
 export const VERSION = "0.35.0";
 
+// Server instructions: clients such as Claude Code load them at session
+// start and cap them at 4,096 characters.
+export const SERVER_INSTRUCTIONS =
+  "Building or editing a spreadsheet, whether a Google Sheet or an .xlsx bound for Drive:\n" +
+  "1. When the user names a file as the starting point, copy that file and fill it in. Keep its tabs, tab order, cell styles, gridlines, column layout, and data-validation rules. Change only what the user or the brief asks for. New rows and columns take the styles around them, and the model's sample rows are cleared.\n" +
+  "2. New labels and cell text read like the labels already there: short, concrete nouns in the same case.\n" +
+  "3. Each data-validation rule moves with its column and extends to every row added to its table. A value outside a rule's list goes in only when the user approves it, and the rule widens to take it.\n" +
+  "4. Before the user sees the sheet, size each column for its heading and a typical cell. Wrap longer text, centered vertically. Split any width the template shares across two columns, and grow rows so wrapped text isn't clipped. Render every tab and fix each clipped, unwrapped, or misaligned cell. Check each column's values against its validation rule.";
+
 export interface ServerOptions {
   /**
    * The Gmail API client. Built from an authenticated OAuth2Client at
@@ -93,6 +102,7 @@ export function createServer(opts: ServerOptions): McpServer {
       // (name, args) → text contract, so we wire the underlying Server
       // directly via the back-door `server.server` reference.
       capabilities: { prompts: {} },
+      instructions: SERVER_INSTRUCTIONS,
     },
   );
 

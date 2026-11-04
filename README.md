@@ -19,7 +19,7 @@ Each family of tools appears only when your sign-in grants its scope.
 | Slides | `slides_create_deck_from_outline`, `slides_append_to_deck` | `presentations` |
 | Calendar | `calendar_list_events`, `calendar_find_free_slots` | `calendar.readonly` |
 
-Calendar is read-only. `drive_read_file` turns a Doc into markdown, a Sheet into CSV with every tab, and a deck into an outline. Permanent delete (`delete_email`, `batch_delete_emails`) needs the extra `mail.google.com` scope, which the setup below leaves out on purpose; `modify_email` can still move mail to Trash.
+The server also sends Claude a short set of rules for building spreadsheets, which Claude Code loads at session start; they live in `src/server.ts`. Calendar is read-only. `drive_read_file` turns a Doc into markdown, a Sheet into CSV with every tab, and a deck into an outline. Permanent delete (`delete_email`, `batch_delete_emails`) needs the extra `mail.google.com` scope, which the setup below leaves out on purpose; `modify_email` can still move mail to Trash.
 
 ## Before you start
 
