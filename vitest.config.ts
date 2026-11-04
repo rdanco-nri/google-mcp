@@ -3,14 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { defineConfig } from "vitest/config";
 
+// Every default under the home folder (state dir, jails, OAuth files)
+// resolves inside a throwaway HOME, so a test that skips its own
+// override can't write into the real ~/.google-mcp. The global setup's
+// teardown deletes it.
+const testHome = mkdtempSync(join(tmpdir(), "google-mcp-test-home-"));
+process.env.GOOGLE_MCP_TEST_HOME = testHome;
+
 export default defineConfig({
   test: {
     exclude: ["dist/**", "node_modules/**"],
-
-    // Every default under the home folder (state dir, jails, OAuth
-    // files) resolves inside a throwaway HOME, so a test that skips its
-    // own override can't write into the real ~/.google-mcp.
-    env: { HOME: mkdtempSync(join(tmpdir(), "google-mcp-test-home-")) },
+    env: { HOME: testHome },
+    globalSetup: ["test/global-setup.ts"],
     coverage: {
       // Include every source file so untested ones show as 0% rather
       // than being silently omitted from the report. v8 coverage
