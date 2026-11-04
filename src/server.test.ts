@@ -3,7 +3,7 @@ import type { gmail_v1 } from "googleapis";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createServer, VERSION } from "./server.js";
+import { createServer, SERVER_INSTRUCTIONS, VERSION } from "./server.js";
 import { defineTool } from "./tools/_shared.js";
 import { z } from "zod";
 
@@ -28,6 +28,21 @@ describe("createServer", () => {
   it("uses the VERSION constant declared in server.ts", () => {
     // Pins the shape so an edit that drops the export is caught at test time.
     expect(VERSION).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it("sends its instructions in the initialize result, under the 4,096-character cap", async () => {
+    const server = createServer({ gmail: mockGmail(), authorizedScopes: [] });
+    const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: "instructions-test", version: "0.0.0" });
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    try {
+      const instructions = client.getInstructions();
+      expect(instructions).toBe(SERVER_INSTRUCTIONS);
+      expect(instructions).toMatch(/^Building or editing a spreadsheet/);
+      expect(instructions!.length).toBeLessThan(4096);
+    } finally {
+      await client.close();
+    }
   });
 
   it("accepts an authorizedScopes list and returns a usable server", () => {
