@@ -347,7 +347,12 @@ export function registerDriveTools(
               { fileId: resolvedId, mimeType: "text/markdown" },
               { responseType: "text" },
             );
-            text = typeof resp.data === "string" ? resp.data : JSON.stringify(resp.data ?? "");
+            text =
+              typeof resp.data === "string"
+                ? resp.data
+                : resp.data == null
+                  ? ""
+                  : JSON.stringify(resp.data);
           } catch (mdErr) {
             const { code: mdCode, message: mdMsg } = asGmailApiError(mdErr);
             if (mdCode === 403 && /exportSizeLimitExceeded/i.test(mdMsg)) {
@@ -360,7 +365,12 @@ export function registerDriveTools(
                 { fileId: resolvedId, mimeType: "text/plain" },
                 { responseType: "text" },
               );
-              text = typeof resp.data === "string" ? resp.data : JSON.stringify(resp.data ?? "");
+              text =
+                typeof resp.data === "string"
+                  ? resp.data
+                  : resp.data == null
+                    ? ""
+                    : JSON.stringify(resp.data);
               exportMime = "text/plain";
             } else {
               throw mdErr;

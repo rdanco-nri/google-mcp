@@ -25,7 +25,7 @@ Calendar is read-only. `drive_read_file` turns a Doc into markdown, a Sheet into
 
 You need:
 
-- **Node.js 22.22 or later:** check with `node -v`.
+- **Node.js 22.22.2 or later:** check with `node -v`.
 - **Claude Code**, or another MCP client such as Claude Desktop or Cursor.
 - **Your newtonresearch.ai Google account**, which can create a Google Cloud project.
 
@@ -33,7 +33,7 @@ You need:
 
 Each person makes their own client, so your tokens never touch anyone else's project.
 
-1. Open the [Google Cloud Console](https://console.cloud.google.com/) signed in as your work account, and create a project, for example `google-mcp-<yourname>`.
+1. Open the [Google Cloud Console](https://console.cloud.google.com/) signed in as your work account, and create a project, for example `google-mcp-<yourname>`. Set its organization to newtonresearch.ai; a project under "No organization" can't offer the Internal option in step 3.
 2. Under **APIs & Services → Library**, enable the Gmail, Google Drive, Google Docs, Google Sheets, Google Slides, and Google Calendar APIs. A missing API shows up later as a 403 error that says the API "has not been used in project".
 3. Under **APIs & Services → OAuth consent screen**, set up the consent screen. Choose the **Internal** user type. Internal keeps the app inside newtonresearch.ai, skips Google's app review, and avoids the 7-day token expiry that External apps in testing get.
 4. Under **APIs & Services → Credentials**, choose **Create credentials → OAuth client ID**, and pick **Desktop app** as the type.
@@ -67,6 +67,8 @@ npm run auth -- --scopes=gmail.modify,gmail.settings.basic,drive,spreadsheets,pr
 
 A browser opens on Google's consent screen. Approve it, and the server saves your tokens to `~/.gmail-mcp/credentials.json`, readable only by you.
 
+The sign-in listens on port 3000. If another program holds that port, add a different callback address to the end of the command, such as `http://localhost:8080/oauth2callback`.
+
 That scope list is the full set we use day to day. Every scope you leave out hides its tools from Claude, so a narrower list works too. For example, `--scopes=gmail.readonly` gives a read-only Gmail.
 
 To add a scope later, run the command again with the **whole** list you want. The server replaces its saved list with what you pass. A shorter list hides tools you had before, even though Google still holds the grant.
@@ -94,7 +96,7 @@ For Claude Desktop or Cursor, add this to the client's MCP config, with the full
 }
 ```
 
-Claude Desktop keeps its config at `~/Library/Application Support/Claude/claude_desktop_config.json`, and Cursor at `~/.cursor/mcp.json`.
+Claude Desktop keeps its config at `~/Library/Application Support/Claude/claude_desktop_config.json`, and Cursor at `~/.cursor/mcp.json`. If you installed Node through nvm, the app may not find `node`, so put the full path from `which node` in `command`.
 
 To check it works, ask Claude to list your Gmail labels.
 
@@ -118,7 +120,7 @@ The server limits what a prompt hidden in an email or doc could make Claude do.
 - **Writes are rate-limited:** the default caps include 100 sends a day and 200 deletes a day.
 - **Every tool says what it does:** each tool tells the client whether it only reads or can change or delete data, so the client can ask you before it runs.
 
-These settings change through environment variables in the MCP config's `env` block. `.env.example` lists each one with its default:
+These settings change through environment variables. In Claude Code, pass each one with `-e` when you register the server, for example `claude mcp add google -s user -e GMAIL_MCP_DRY_RUN=true -- node ~/workspace/google-mcp/dist/index.js`; run `claude mcp remove google -s user` first to change an existing entry. In other clients, put them in the config's `env` block. `.env.example` lists each one with its default:
 
 | Variable | Effect |
 |---|---|
