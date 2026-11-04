@@ -350,7 +350,7 @@ export function registerDriveTools(
             text =
               typeof resp.data === "string"
                 ? resp.data
-                : resp.data == null
+                : resp.data === null || resp.data === undefined
                   ? ""
                   : JSON.stringify(resp.data);
           } catch (mdErr) {
@@ -368,7 +368,7 @@ export function registerDriveTools(
               text =
                 typeof resp.data === "string"
                   ? resp.data
-                  : resp.data == null
+                  : resp.data === null || resp.data === undefined
                     ? ""
                     : JSON.stringify(resp.data);
               exportMime = "text/plain";
