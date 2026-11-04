@@ -2,10 +2,10 @@
  * Recipient pairing gate for write tools.
  *
  * Caps the blast radius of a prompt-injected `send_email` / `reply_all`
- * / `draft_email` call: when `GMAIL_MCP_RECIPIENT_PAIRING=true`, every
+ * / `draft_email` call: when `GOOGLE_MCP_RECIPIENT_PAIRING=true`, every
  * `To` / `Cc` / `Bcc` address must appear in an operator-maintained
- * allowlist (`~/.gmail-mcp/paired.json` by default, overridable via
- * `GMAIL_MCP_PAIRED_PATH`). The operator pairs addresses out-of-band
+ * allowlist (`~/.google-mcp/paired.json` by default, overridable via
+ * `GOOGLE_MCP_PAIRED_PATH`). The operator pairs addresses out-of-band
  * (via the `pair_recipient` tool or by editing the file), so a
  * hostile email asking the agent to send its inbox to
  * `attacker@evil.example` cannot reach Gmail — it is rejected before
@@ -17,7 +17,7 @@
  *   mainstream provider including Gmail folds case, so matching on
  *   lowercased values avoids `Alice@X.com` vs `alice@x.com` drift).
  * - The file is written at mode `0o600` to match the rest of
- *   `~/.gmail-mcp/`. The parent directory is created at mode `0o700`
+ *   `~/.google-mcp/`. The parent directory is created at mode `0o700`
  *   if it does not already exist.
  * - The feature is OFF by default — legacy users are not broken by
  *   the install. Turning it on requires one explicit env flag plus
@@ -29,8 +29,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { homedir } from "node:os";
 
-export const ENV_RECIPIENT_PAIRING = "GMAIL_MCP_RECIPIENT_PAIRING";
-export const ENV_PAIRED_PATH = "GMAIL_MCP_PAIRED_PATH";
+export const ENV_RECIPIENT_PAIRING = "GOOGLE_MCP_RECIPIENT_PAIRING";
+export const ENV_PAIRED_PATH = "GOOGLE_MCP_PAIRED_PATH";
 
 export function isPairingEnabled(): boolean {
   return process.env[ENV_RECIPIENT_PAIRING] === "true";
@@ -44,7 +44,7 @@ export function getPairedPath(): string {
     }
     return override;
   }
-  return path.join(homedir(), ".gmail-mcp", "paired.json");
+  return path.join(homedir(), ".google-mcp", "paired.json");
 }
 
 interface PairedFile {

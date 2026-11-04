@@ -1,7 +1,7 @@
 /**
  * Opt-in JSONL audit log.
  *
- * When `GMAIL_MCP_AUDIT_LOG` is set to an absolute path, every call to
+ * When `GOOGLE_MCP_AUDIT_LOG` is set to an absolute path, every call to
  * a write tool appends one JSON line recording:
  *   { ts, tool, result, args }
  * where `args` is recursively redacted — sensitive keys (OAuth tokens,
@@ -61,14 +61,14 @@ const SENSITIVE_KEYS_SET: ReadonlySet<string> = new Set(SENSITIVE_KEYS);
  * exfiltration channel if the log itself leaks). Those reconstruct
  * the full conversation from the log and expose counterparty data
  * that a security-audit log has no business keeping. To re-enable
- * full-fidelity inspection, set `GMAIL_MCP_AUDIT_LOG_VERBOSE=true`
+ * full-fidelity inspection, set `GOOGLE_MCP_AUDIT_LOG_VERBOSE=true`
  * which restricts elision to the size-only set.
  */
 const SIZE_ELIDED_KEYS = ["body", "htmlbody", "data", "attachments"] as const;
 const PII_ELIDED_KEYS = ["subject", "to", "cc", "bcc", "from", "snippet", "q", "forward"] as const;
 
 const ELIDED_KEYS: ReadonlySet<string> =
-  process.env.GMAIL_MCP_AUDIT_LOG_VERBOSE === "true"
+  process.env.GOOGLE_MCP_AUDIT_LOG_VERBOSE === "true"
     ? new Set<string>(SIZE_ELIDED_KEYS)
     : new Set<string>([...SIZE_ELIDED_KEYS, ...PII_ELIDED_KEYS]);
 
@@ -102,10 +102,10 @@ export function redactSensitive(value: unknown): unknown {
 export type AuditResult = "ok" | "error" | "rate_limited" | "dry-run";
 
 export function logAudit(toolName: string, args: unknown, result: AuditResult): void {
-  const path = process.env.GMAIL_MCP_AUDIT_LOG;
+  const path = process.env.GOOGLE_MCP_AUDIT_LOG;
   if (!path) return;
   if (!isAbsolute(path)) {
-    console.error(`[audit] GMAIL_MCP_AUDIT_LOG must be an absolute path; got: ${path}`);
+    console.error(`[audit] GOOGLE_MCP_AUDIT_LOG must be an absolute path; got: ${path}`);
     return;
   }
   const entry = JSON.stringify({

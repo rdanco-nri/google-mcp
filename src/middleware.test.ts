@@ -37,14 +37,14 @@ describe("wrapToolHandler", () => {
   };
 
   beforeEach(() => {
-    stateDir = mkdtempSync(join(tmpdir(), "gmail-mcp-middleware-test-"));
+    stateDir = mkdtempSync(join(tmpdir(), "google-mcp-middleware-test-"));
     auditPath = join(stateDir, "audit.jsonl");
-    process.env.GMAIL_MCP_STATE_DIR = stateDir;
-    process.env.GMAIL_MCP_AUDIT_LOG = auditPath;
-    delete process.env.GMAIL_MCP_RATE_LIMIT_DISABLE;
-    delete process.env.GMAIL_MCP_DRY_RUN;
+    process.env.GOOGLE_MCP_STATE_DIR = stateDir;
+    process.env.GOOGLE_MCP_AUDIT_LOG = auditPath;
+    delete process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE;
+    delete process.env.GOOGLE_MCP_DRY_RUN;
     for (const k of Object.keys(process.env)) {
-      if (k.startsWith("GMAIL_MCP_RATE_LIMIT_") && k !== "GMAIL_MCP_RATE_LIMIT_DISABLE") {
+      if (k.startsWith("GOOGLE_MCP_RATE_LIMIT_") && k !== "GOOGLE_MCP_RATE_LIMIT_DISABLE") {
         delete process.env[k];
       }
     }
@@ -102,7 +102,7 @@ describe("wrapToolHandler", () => {
 
   it("trips on rate-limit and returns an isError MCP payload (no handler run)", async () => {
     // Force the `send` bucket to 1/day so the second call is rejected.
-    process.env.GMAIL_MCP_RATE_LIMIT_send = "1/day,1/month";
+    process.env.GOOGLE_MCP_RATE_LIMIT_send = "1/day,1/month";
     resetRateLimitHistory();
 
     let handlerRuns = 0;
@@ -130,7 +130,7 @@ describe("wrapToolHandler", () => {
   });
 
   it("logs `rate_limited` audit entry when the rate-limit trips", async () => {
-    process.env.GMAIL_MCP_RATE_LIMIT_send = "1/day,1/month";
+    process.env.GOOGLE_MCP_RATE_LIMIT_send = "1/day,1/month";
     resetRateLimitHistory();
 
     await wrapToolHandler("send_email", { to: "a@b.c" }, async () => okResult);
@@ -158,23 +158,23 @@ describe("wrapToolHandler", () => {
     expect(result.content[1].text).toBe(dirty);
   });
 
-  describe("dry-run mode (GMAIL_MCP_DRY_RUN=true)", () => {
+  describe("dry-run mode (GOOGLE_MCP_DRY_RUN=true)", () => {
     it("flips on when the env var equals the exact string 'true'", () => {
-      delete process.env.GMAIL_MCP_DRY_RUN;
+      delete process.env.GOOGLE_MCP_DRY_RUN;
       expect(isDryRun()).toBe(false);
-      process.env.GMAIL_MCP_DRY_RUN = "true";
+      process.env.GOOGLE_MCP_DRY_RUN = "true";
       expect(isDryRun()).toBe(true);
     });
 
     it("does not flip on for truthy-but-not-'true' values (strict match)", () => {
       for (const v of ["1", "TRUE", "True", "yes", "on", ""]) {
-        process.env.GMAIL_MCP_DRY_RUN = v;
+        process.env.GOOGLE_MCP_DRY_RUN = v;
         expect(isDryRun()).toBe(false);
       }
     });
 
     it("short-circuits write tools with a dry-run payload and skips the handler", async () => {
-      process.env.GMAIL_MCP_DRY_RUN = "true";
+      process.env.GOOGLE_MCP_DRY_RUN = "true";
       let handlerRuns = 0;
       const handler = async (): Promise<ToolResult> => {
         handlerRuns += 1;
@@ -213,7 +213,7 @@ describe("wrapToolHandler", () => {
     });
 
     it("redacts sensitive arg fields in the dry-run payload", async () => {
-      process.env.GMAIL_MCP_DRY_RUN = "true";
+      process.env.GOOGLE_MCP_DRY_RUN = "true";
       const result = await wrapToolHandler(
         "send_email",
         { to: "a@b.c", access_token: "SECRET", authorization: "Bearer X" },
@@ -228,11 +228,11 @@ describe("wrapToolHandler", () => {
     });
 
     it("logs a 'dry-run' audit entry and never enters the rate-limit bucket", async () => {
-      process.env.GMAIL_MCP_DRY_RUN = "true";
+      process.env.GOOGLE_MCP_DRY_RUN = "true";
       // Force a 1/day bucket — a real call would trip on the second
       // invocation, but dry-run runs BEFORE rate-limit so the bucket
       // stays untouched.
-      process.env.GMAIL_MCP_RATE_LIMIT_send = "1/day,1/month";
+      process.env.GOOGLE_MCP_RATE_LIMIT_send = "1/day,1/month";
       resetRateLimitHistory();
 
       await wrapToolHandler("send_email", { to: "a@b.c" }, async () => okResult);
@@ -245,7 +245,7 @@ describe("wrapToolHandler", () => {
     });
 
     it("does not short-circuit read tools (they bypass dry-run)", async () => {
-      process.env.GMAIL_MCP_DRY_RUN = "true";
+      process.env.GOOGLE_MCP_DRY_RUN = "true";
       let handlerRuns = 0;
       const result = await wrapToolHandler("list_email_labels", {}, async () => {
         handlerRuns += 1;

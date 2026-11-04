@@ -20,7 +20,7 @@ describe("recipient-pairing", () => {
   const prevPath = process.env[ENV_PAIRED_PATH];
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), "gmail-mcp-pairing-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "google-mcp-pairing-test-"));
     process.env[ENV_PAIRED_PATH] = join(tmpDir, "paired.json");
     delete process.env[ENV_RECIPIENT_PAIRING];
   });
@@ -58,9 +58,9 @@ describe("recipient-pairing", () => {
       expect(getPairedPath()).toBe(join(tmpDir, "paired.json"));
     });
 
-    it("falls back to ~/.gmail-mcp/paired.json when no override is set", () => {
+    it("falls back to ~/.google-mcp/paired.json when no override is set", () => {
       delete process.env[ENV_PAIRED_PATH];
-      expect(getPairedPath()).toBe(join(homedir(), ".gmail-mcp", "paired.json"));
+      expect(getPairedPath()).toBe(join(homedir(), ".google-mcp", "paired.json"));
     });
   });
 

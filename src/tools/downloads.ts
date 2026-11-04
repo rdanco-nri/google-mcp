@@ -1,7 +1,7 @@
 /**
  * Download-domain tool registrars (`download_email`, `download_attachment`).
- * Both tools write a file under the `GMAIL_MCP_DOWNLOAD_DIR` jail
- * (default `~/GmailDownloads`) via `safeWriteFile` (O_NOFOLLOW on the
+ * Both tools write a file under the `GOOGLE_MCP_DOWNLOAD_DIR` jail
+ * (default `~/GoogleMCP/downloads`) via `safeWriteFile` (O_NOFOLLOW on the
  * leaf, O_EXCL against silent overwrites). PR #7 deletes the
  * corresponding switch arms from the legacy dispatcher in
  * `src/index.ts`.

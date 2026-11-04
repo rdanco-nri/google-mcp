@@ -2,10 +2,7 @@
  * Tool-handler middleware for the MCP `CallToolRequestSchema` dispatcher.
  *
  * This module exists to extract the rate-limit + audit-log wiring that
- * currently lives inline inside the 1300-line switch in `src/index.ts`,
- * mirroring the design of the sibling repos:
- *   - `mercury-invoicing-mcp/src/middleware.ts:359`
- *   - `faxdrop-mcp/src/middleware.ts:203`
+ * currently lives inline inside the 1300-line switch in `src/index.ts`.
  *
  * Extraction unblocks the v0.10.0 parity layers (`AbortSignal.timeout`,
  * `sanitizeForLlm` fence, dry-run, `structuredContent`) without having
@@ -26,7 +23,7 @@ import { sanitizeForLlm } from "./sanitize.js";
  * call is made; read-only tools (`list_*`, `get_*`, `read_*`,
  * `search_*`, `download_*`) bypass dry-run entirely — there is nothing
  * to preview, and `download_*` only writes to a local jail inside
- * `GMAIL_MCP_DOWNLOAD_DIR`, which is an LLM-visible side effect that
+ * `GOOGLE_MCP_DOWNLOAD_DIR`, which is an LLM-visible side effect that
  * the download-path hardening (see `src/index.ts`) owns rather than
  * the dry-run gate (CR #52).
  *
@@ -79,7 +76,7 @@ const WRITE_TOOLS = new Set<string>([
 ]);
 
 /**
- * Dry-run gate. Set `GMAIL_MCP_DRY_RUN=true` to make every write tool
+ * Dry-run gate. Set `GOOGLE_MCP_DRY_RUN=true` to make every write tool
  * short-circuit before calling Gmail and return the payload it would
  * have sent (sensitive args redacted via `redactSensitive`). Matches
  * `MERCURY_MCP_DRY_RUN` and `FAXDROP_MCP_DRY_RUN` in the sibling
@@ -93,7 +90,7 @@ const WRITE_TOOLS = new Set<string>([
  * copies a value from a different env convention.
  */
 export function isDryRun(): boolean {
-  return process.env.GMAIL_MCP_DRY_RUN === "true";
+  return process.env.GOOGLE_MCP_DRY_RUN === "true";
 }
 
 /**
@@ -262,7 +259,7 @@ export async function wrapToolHandler(
       dryRun: true,
       tool: name,
       wouldCallWith: redactSensitive(args),
-      note: "GMAIL_MCP_DRY_RUN=true; no Gmail API call was made. Sensitive fields are redacted.",
+      note: "GOOGLE_MCP_DRY_RUN=true; no Gmail API call was made. Sensitive fields are redacted.",
     };
     safeLogAudit(name, args, "dry-run");
     // Route the preview through the same sanitize fence as a real

@@ -296,13 +296,13 @@ async function connect(scopes: string[], data: MockData = {}) {
 }
 
 describe("calendar tool registration", () => {
-  const original = process.env.GMAIL_MCP_RATE_LIMIT_DISABLE;
+  const original = process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE;
   beforeEach(() => {
-    process.env.GMAIL_MCP_RATE_LIMIT_DISABLE = "1";
+    process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE = "1";
   });
   afterEach(() => {
-    if (original === undefined) delete process.env.GMAIL_MCP_RATE_LIMIT_DISABLE;
-    else process.env.GMAIL_MCP_RATE_LIMIT_DISABLE = original;
+    if (original === undefined) delete process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE;
+    else process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE = original;
   });
 
   it("advertises both tools on a calendar.readonly token", async () => {
@@ -330,13 +330,13 @@ describe("calendar tool registration", () => {
 });
 
 describe("calendar_find_free_slots handler", () => {
-  const original = process.env.GMAIL_MCP_RATE_LIMIT_DISABLE;
+  const original = process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE;
   beforeEach(() => {
-    process.env.GMAIL_MCP_RATE_LIMIT_DISABLE = "1";
+    process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE = "1";
   });
   afterEach(() => {
-    if (original === undefined) delete process.env.GMAIL_MCP_RATE_LIMIT_DISABLE;
-    else process.env.GMAIL_MCP_RATE_LIMIT_DISABLE = original;
+    if (original === undefined) delete process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE;
+    else process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE = original;
   });
 
   it("intersects busy blocks across two attendees", async () => {

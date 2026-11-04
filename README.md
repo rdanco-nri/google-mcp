@@ -37,14 +37,12 @@ Each person makes their own client, so your tokens never touch anyone else's pro
 2. Under **APIs & Services → Library**, enable the Gmail, Google Drive, Google Docs, Google Sheets, Google Slides, and Google Calendar APIs. A missing API shows up later as a 403 error that says the API "has not been used in project".
 3. Under **APIs & Services → OAuth consent screen**, set up the consent screen. Choose the **Internal** user type. Internal keeps the app inside newtonresearch.ai, skips Google's app review, and avoids the 7-day token expiry that External apps in testing get.
 4. Under **APIs & Services → Credentials**, choose **Create credentials → OAuth client ID**, and pick **Desktop app** as the type.
-5. Download the client's JSON file, and save it as `~/.gmail-mcp/gcp-oauth.keys.json`:
+5. Download the client's JSON file, and save it as `~/.google-mcp/gcp-oauth.keys.json`:
 
    ```bash
-   mkdir -p ~/.gmail-mcp
-   mv ~/Downloads/client_secret_*.json ~/.gmail-mcp/gcp-oauth.keys.json
+   mkdir -p ~/.google-mcp
+   mv ~/Downloads/client_secret_*.json ~/.google-mcp/gcp-oauth.keys.json
    ```
-
-The folder is named `.gmail-mcp` because the server started as a Gmail-only tool. The name stayed so existing sign-ins keep working.
 
 ## 2. Build the server
 
@@ -65,7 +63,7 @@ From the `google-mcp` folder, run:
 npm run auth -- --scopes=gmail.modify,gmail.settings.basic,drive,spreadsheets,presentations,documents,calendar.readonly
 ```
 
-A browser opens on Google's consent screen. Approve it, and the server saves your tokens to `~/.gmail-mcp/credentials.json`, readable only by you.
+A browser opens on Google's consent screen. Approve it, and the server saves your tokens to `~/.google-mcp/credentials.json`, readable only by you.
 
 The sign-in listens on port 3000. If another program holds that port, add a different callback address to the end of the command, such as `http://localhost:8080/oauth2callback`.
 
@@ -115,28 +113,28 @@ Then restart your MCP client, which loads `dist/index.js` only at startup.
 
 The server limits what a prompt hidden in an email or doc could make Claude do.
 
-- **Outgoing files come from known folders:** an email attachment must sit in `~/GmailAttachments`, and a Drive upload in `~/GmailAttachments` or `~/GmailDownloads`. A request to attach `~/.ssh/id_rsa` fails before it reaches Google.
-- **Downloads land in one folder:** downloaded emails, attachments, and Drive files go to `~/GmailDownloads`.
+- **Outgoing files come from known folders:** an email attachment must sit in `~/GoogleMCP/attachments`, and a Drive upload in `~/GoogleMCP/attachments` or `~/GoogleMCP/downloads`. A request to attach `~/.ssh/id_rsa` fails before it reaches Google.
+- **Downloads land in one folder:** downloaded emails, attachments, and Drive files go to `~/GoogleMCP/downloads`.
 - **Writes are rate-limited:** the default caps include 100 sends a day and 200 deletes a day.
 - **Every tool says what it does:** each tool tells the client whether it only reads or can change or delete data, so the client can ask you before it runs.
 
-These settings change through environment variables. In Claude Code, pass each one with `-e` when you register the server, for example `claude mcp add google -s user -e GMAIL_MCP_DRY_RUN=true -- node ~/workspace/google-mcp/dist/index.js`; run `claude mcp remove google -s user` first to change an existing entry. In other clients, put them in the config's `env` block. `.env.example` lists each one with its default:
+These settings change through environment variables. In Claude Code, pass each one with `-e` when you register the server, for example `claude mcp add google -s user -e GOOGLE_MCP_DRY_RUN=true -- node ~/workspace/google-mcp/dist/index.js`; run `claude mcp remove google -s user` first to change an existing entry. In other clients, put them in the config's `env` block. `.env.example` lists each one with its default:
 
 | Variable | Effect |
 |---|---|
-| `GMAIL_MCP_ATTACHMENT_DIR` | Folder that outgoing attachments and uploads come from |
-| `GMAIL_MCP_DOWNLOAD_DIR` | Folder that downloads go to |
-| `GMAIL_MCP_DRY_RUN=true` | Every write returns what it would have sent, without sending it |
-| `GMAIL_MCP_AUDIT_LOG=/abs/path.jsonl` | Logs every tool call, with message content left out |
-| `GMAIL_MCP_RECIPIENT_PAIRING=true` | Sends only to addresses on an allowlist kept by `pair_recipient` |
-| `GMAIL_MCP_RATE_LIMIT_send=400/day,6000/month` | Changes one rate-limit cap; the other buckets are `delete`, `modify`, `drafts`, `labels`, `filters`, and `workspace_writes` |
+| `GOOGLE_MCP_ATTACHMENT_DIR` | Folder that outgoing attachments and uploads come from |
+| `GOOGLE_MCP_DOWNLOAD_DIR` | Folder that downloads go to |
+| `GOOGLE_MCP_DRY_RUN=true` | Every write returns what it would have sent, without sending it |
+| `GOOGLE_MCP_AUDIT_LOG=/abs/path.jsonl` | Logs every tool call, with message content left out |
+| `GOOGLE_MCP_RECIPIENT_PAIRING=true` | Sends only to addresses on an allowlist kept by `pair_recipient` |
+| `GOOGLE_MCP_RATE_LIMIT_send=400/day,6000/month` | Changes one rate-limit cap; the other buckets are `delete`, `modify`, `drafts`, `labels`, `filters`, and `workspace_writes` |
 
 ## Troubleshooting
 
 - **A tool says the sign-in expired or returns `invalid_grant`:** run the step 3 command again.
 - **A call returns 403 "API has not been used in project":** enable that API in your Cloud project, wait a minute, and retry.
 - **Claude doesn't see a tool you expect:** your sign-in lacks its scope. Run step 3 again with the full list.
-- **`npm run auth` says it can't find OAuth keys:** check that the file sits at `~/.gmail-mcp/gcp-oauth.keys.json`.
+- **`npm run auth` says it can't find OAuth keys:** check that the file sits at `~/.google-mcp/gcp-oauth.keys.json`.
 
 ## Development
 

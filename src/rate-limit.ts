@@ -16,16 +16,14 @@
  * that a prompt-injected agent could fire in a loop.
  *
  * Persistence: `<stateDir>/ratelimit.json`, mode 0o600, atomic rename.
- * `stateDir` defaults to `~/.gmail-mcp/` (override with
- * `GMAIL_MCP_STATE_DIR`). State is keyed by bucket; entries are arrays
+ * `stateDir` defaults to `~/.google-mcp/` (override with
+ * `GOOGLE_MCP_STATE_DIR`). State is keyed by bucket; entries are arrays
  * of Unix-ms timestamps pruned to the monthly window on every access.
  *
  * Env overrides:
- *   GMAIL_MCP_RATE_LIMIT_<BUCKET>=D/day,M/month   # e.g. "50/day,500/month"
- *   GMAIL_MCP_RATE_LIMIT_DISABLE=true             # disable all limits
- *   GMAIL_MCP_STATE_DIR=/abs/path                 # state directory
- *
- * Design inspired by mercury-invoicing-mcp's middleware.ts.
+ *   GOOGLE_MCP_RATE_LIMIT_<BUCKET>=D/day,M/month   # e.g. "50/day,500/month"
+ *   GOOGLE_MCP_RATE_LIMIT_DISABLE=true             # disable all limits
+ *   GOOGLE_MCP_STATE_DIR=/abs/path                 # state directory
  */
 
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
@@ -115,9 +113,9 @@ interface BucketLimit {
  * to spam before the limiter fired. The new default trips much
  * earlier in the abuse curve and still covers every legitimate
  * personal-assistant workload — heavy users override via
- * `GMAIL_MCP_RATE_LIMIT_send=400/day,6000/month` to opt back in.
+ * `GOOGLE_MCP_RATE_LIMIT_send=400/day,6000/month` to opt back in.
  *
- * Override any bucket with `GMAIL_MCP_RATE_LIMIT_<BUCKET>=D/day,M/month`.
+ * Override any bucket with `GOOGLE_MCP_RATE_LIMIT_<BUCKET>=D/day,M/month`.
  */
 const DEFAULT_BUCKET_LIMITS: Record<string, BucketLimit> = {
   send: { daily: 100, monthly: 2000 },
@@ -146,7 +144,7 @@ function parseOverride(raw: string): BucketLimit | null {
 }
 
 function getBucketLimit(bucket: string): BucketLimit | null {
-  const envKey = `GMAIL_MCP_RATE_LIMIT_${bucket}`;
+  const envKey = `GOOGLE_MCP_RATE_LIMIT_${bucket}`;
   const raw = process.env[envKey];
   if (raw) {
     const parsed = parseOverride(raw);
@@ -169,7 +167,7 @@ const callHistory = new Map<string, number[]>();
 let readOk = false;
 
 function getStateFile(): string {
-  const dir = process.env.GMAIL_MCP_STATE_DIR || join(homedir(), ".gmail-mcp");
+  const dir = process.env.GOOGLE_MCP_STATE_DIR || join(homedir(), ".google-mcp");
   return join(dir, "ratelimit.json");
 }
 
@@ -264,7 +262,7 @@ export class RateLimitError extends Error {
     super(
       `${title}: ${toolName} (bucket: ${bucket}) capped at ${limit} per ${windowLabel}. ` +
         `Retry in ~${retryMinutes} min. ` +
-        `Override with GMAIL_MCP_RATE_LIMIT_${bucket}=D/day,M/month if this is a legitimate batch.`,
+        `Override with GOOGLE_MCP_RATE_LIMIT_${bucket}=D/day,M/month if this is a legitimate batch.`,
     );
     this.name = "RateLimitError";
   }
@@ -280,7 +278,7 @@ export class RateLimitError extends Error {
  * - On deny: throws RateLimitError with the limit type that failed
  */
 export function enforceRateLimit(toolName: string): void {
-  if (process.env.GMAIL_MCP_RATE_LIMIT_DISABLE === "true") return;
+  if (process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE === "true") return;
 
   const bucket = TOOL_BUCKET[toolName];
   if (!bucket) return; // read tool or untracked → no limit
@@ -319,8 +317,6 @@ export function enforceRateLimit(toolName: string): void {
 
 /**
  * Format a RateLimitError into the MCP ToolResult content payload.
- * Mirrors mercury-invoicing-mcp's format so MCP clients that already
- * surface one can surface the other.
  */
 export function formatRateLimitError(err: RateLimitError): string {
   const retryAt = new Date(Date.now() + err.retryAfterMs).toISOString();
@@ -332,7 +328,7 @@ export function formatRateLimitError(err: RateLimitError): string {
           ? "mcp_rate_limit_daily_exceeded"
           : "mcp_rate_limit_monthly_exceeded",
       message: err.message,
-      hint: `Bucket "${err.bucket}" is at ${err.limit} calls per ${err.limitType === "daily" ? "24h" : "30 days"}. Override with GMAIL_MCP_RATE_LIMIT_${err.bucket}=D/day,M/month if this is a legitimate batch.`,
+      hint: `Bucket "${err.bucket}" is at ${err.limit} calls per ${err.limitType === "daily" ? "24h" : "30 days"}. Override with GOOGLE_MCP_RATE_LIMIT_${err.bucket}=D/day,M/month if this is a legitimate batch.`,
       retry_after: retryAt,
     },
     null,

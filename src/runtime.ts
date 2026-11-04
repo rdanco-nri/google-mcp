@@ -14,7 +14,7 @@
  * Pure helpers exported for direct testing:
  *   - `parseCallbackArg(argv)` — finds the `http(s)://…` positional
  *   - `parseScopesArg(argv)` — `--scopes=` parsing + validation
- *   - `parseTimeoutMs(raw, log)` — `GMAIL_MCP_TIMEOUT_MS` parsing
+ *   - `parseTimeoutMs(raw, log)` — `GOOGLE_MCP_TIMEOUT_MS` parsing
  */
 
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -36,9 +36,9 @@ export interface RunServerOpts {
    */
   argv: readonly string[];
   /**
-   * Process env (`process.env`). Honoured keys: `GMAIL_OAUTH_PATH`,
-   * `GMAIL_CREDENTIALS_PATH`, `GMAIL_MCP_TIMEOUT_MS`. Defaults
-   * resolve `~/.gmail-mcp/{gcp-oauth.keys,credentials}.json`.
+   * Process env (`process.env`). Honoured keys: `GOOGLE_MCP_OAUTH_PATH`,
+   * `GOOGLE_MCP_CREDENTIALS_PATH`, `GOOGLE_MCP_TIMEOUT_MS`. Defaults
+   * resolve `~/.google-mcp/{gcp-oauth.keys,credentials}.json`.
    */
   env: NodeJS.ProcessEnv;
   /**
@@ -109,7 +109,7 @@ export function parseScopesArg(argv: readonly string[]): {
 }
 
 /**
- * Parse `GMAIL_MCP_TIMEOUT_MS` env var into a positive integer. A
+ * Parse `GOOGLE_MCP_TIMEOUT_MS` env var into a positive integer. A
  * negative / decimal / non-numeric value silently reopens the
  * hang-forever path on a slow Gmail response, so we validate
  * explicitly and fall back to `DEFAULT_TIMEOUT_MS` (60 s) with a
@@ -124,7 +124,7 @@ export function parseTimeoutMs(
   const parsed = Number(raw);
   if (Number.isInteger(parsed) && parsed > 0) return parsed;
   log(
-    `Invalid GMAIL_MCP_TIMEOUT_MS="${raw}" (must be a positive integer); falling back to ${DEFAULT_TIMEOUT_MS}ms.`,
+    `Invalid GOOGLE_MCP_TIMEOUT_MS="${raw}" (must be a positive integer); falling back to ${DEFAULT_TIMEOUT_MS}ms.`,
   );
   return DEFAULT_TIMEOUT_MS;
 }
@@ -148,16 +148,16 @@ export async function runServer(opts: RunServerOpts): Promise<void> {
   const log = opts.log ?? ((msg: string, ...rest: unknown[]) => console.error(msg, ...rest));
   const exit = opts.exit ?? ((code: number) => process.exit(code));
 
-  const CONFIG_DIR = path.join(os.homedir(), ".gmail-mcp");
+  const CONFIG_DIR = path.join(os.homedir(), ".google-mcp");
   /* v8 ignore start -- env-var-vs-default fallback branches for the
      two OAuth file paths. Tests always inject `env` with explicit
      paths so the `||` short-circuit's right-hand side
      (`path.join(CONFIG_DIR, ...)`) is never reached. The default
-     `~/.gmail-mcp/gcp-oauth.keys.json` resolution is the production
+     `~/.google-mcp/gcp-oauth.keys.json` resolution is the production
      happy path and is exercised by every real `npx ... auth` run. */
-  const OAUTH_PATH = opts.env.GMAIL_OAUTH_PATH || path.join(CONFIG_DIR, "gcp-oauth.keys.json");
+  const OAUTH_PATH = opts.env.GOOGLE_MCP_OAUTH_PATH || path.join(CONFIG_DIR, "gcp-oauth.keys.json");
   const CREDENTIALS_PATH =
-    opts.env.GMAIL_CREDENTIALS_PATH || path.join(CONFIG_DIR, "credentials.json");
+    opts.env.GOOGLE_MCP_CREDENTIALS_PATH || path.join(CONFIG_DIR, "credentials.json");
   /* v8 ignore stop */
 
   const callbackArg = parseCallbackArg(opts.argv);
@@ -167,7 +167,7 @@ export async function runServer(opts: RunServerOpts): Promise<void> {
     credentialsPath: CREDENTIALS_PATH,
     configDir: CONFIG_DIR,
     skipConfigDirCreate:
-      Boolean(opts.env.GMAIL_OAUTH_PATH) || Boolean(opts.env.GMAIL_CREDENTIALS_PATH),
+      Boolean(opts.env.GOOGLE_MCP_OAUTH_PATH) || Boolean(opts.env.GOOGLE_MCP_CREDENTIALS_PATH),
     callbackArg,
     log,
     // Thread the runServer-injected exit handler through to
@@ -249,8 +249,7 @@ export async function runServer(opts: RunServerOpts): Promise<void> {
   // inside `createServer`, so every subsequent `gmail.users.*` call
   // inherits the timeout through gaxios.
   //
-  // 60 s default (vs mercury's 30 s) because gmail carries two slow-
-  // path surfaces that mercury does not:
+  // 60 s default because gmail carries two slow-path surfaces:
   //   (1) attachment upload on `send_email` — a 25 MB PDF base64-
   //       encoded on a mid-tier mobile uplink routinely pushes the
   //       single POST past 30 s even on a healthy Google edge;
@@ -258,7 +257,7 @@ export async function runServer(opts: RunServerOpts): Promise<void> {
   //       googleapis.com hop adds 200–500 ms per request, compounded
   //       across the ~3 internal redirects gaxios follows on a
   //       `messages.send` with attachments).
-  const gmailTimeoutMs = parseTimeoutMs(opts.env.GMAIL_MCP_TIMEOUT_MS, log);
+  const gmailTimeoutMs = parseTimeoutMs(opts.env.GOOGLE_MCP_TIMEOUT_MS, log);
   google.options({ timeout: gmailTimeoutMs });
 
   // Startup smoke test: request an access token up-front. If the

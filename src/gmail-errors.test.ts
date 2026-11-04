@@ -126,12 +126,12 @@ describe("isInvalidGrantError", () => {
 
 describe("buildInvalidGrantPayload", () => {
   it("returns a structured payload with the exact contract keys", () => {
-    const payload = buildInvalidGrantPayload("/home/alice/.gmail-mcp/credentials.json");
+    const payload = buildInvalidGrantPayload("/home/alice/.google-mcp/credentials.json");
     expect(payload).toEqual({
       code: "INVALID_GRANT",
       message: expect.stringContaining("Google"),
       recovery_action: expect.stringContaining("npm run auth"),
-      credential_path: "/home/alice/.gmail-mcp/credentials.json",
+      credential_path: "/home/alice/.google-mcp/credentials.json",
     });
   });
 

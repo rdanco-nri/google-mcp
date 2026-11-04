@@ -11,7 +11,7 @@
  * sends.
  *
  * Both jails are pinned to per-test tempdirs so the host's real
- * ~/GmailAttachments and ~/GmailDownloads are never read.
+ * ~/GoogleMCP/attachments and ~/GoogleMCP/downloads are never read.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -125,13 +125,13 @@ function writeFile(dir: string, name: string, bytes = 1024): string {
 }
 
 beforeEach(() => {
-  attachmentDir = fs.mkdtempSync(path.join(os.tmpdir(), "gmail-mcp-upload-attach-"));
-  downloadDir = fs.mkdtempSync(path.join(os.tmpdir(), "gmail-mcp-upload-download-"));
-  outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "gmail-mcp-upload-outside-"));
-  process.env.GMAIL_MCP_ATTACHMENT_DIR = attachmentDir;
-  process.env.GMAIL_MCP_DOWNLOAD_DIR = downloadDir;
-  process.env.GMAIL_MCP_RATE_LIMIT_DISABLE = "1";
-  delete process.env.GMAIL_MCP_DRY_RUN;
+  attachmentDir = fs.mkdtempSync(path.join(os.tmpdir(), "google-mcp-upload-attach-"));
+  downloadDir = fs.mkdtempSync(path.join(os.tmpdir(), "google-mcp-upload-download-"));
+  outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "google-mcp-upload-outside-"));
+  process.env.GOOGLE_MCP_ATTACHMENT_DIR = attachmentDir;
+  process.env.GOOGLE_MCP_DOWNLOAD_DIR = downloadDir;
+  process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE = "1";
+  delete process.env.GOOGLE_MCP_DRY_RUN;
   resetJailDirCache();
 });
 
@@ -340,8 +340,8 @@ describe("drive_upload_file", () => {
     await other.close();
   });
 
-  it("short-circuits under GMAIL_MCP_DRY_RUN without calling Drive", async () => {
-    process.env.GMAIL_MCP_DRY_RUN = "true";
+  it("short-circuits under GOOGLE_MCP_DRY_RUN without calling Drive", async () => {
+    process.env.GOOGLE_MCP_DRY_RUN = "true";
     const fix = await connect(["drive"]);
     const p = writeFile(attachmentDir, "havas-demo.pptx");
     const r = await callUpload(fix, { path: p });

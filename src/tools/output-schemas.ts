@@ -28,7 +28,7 @@
 import { z, type ZodRawShape } from "zod";
 
 /**
- * `download_email` writes a file inside `GMAIL_MCP_DOWNLOAD_DIR`
+ * `download_email` writes a file inside `GOOGLE_MCP_DOWNLOAD_DIR`
  * and returns metadata about the saved artifact + the message
  * headers that drove the filename. Emitted by every successful
  * `download_email` call (json/eml/txt/html — the format only
