@@ -51,8 +51,7 @@ export function pullToolMeta(name: string): {
  * gmail middleware (rate-limit, audit log, sanitize-fence,
  * structuredContent) wired via `wrapToolHandler`. The Zod input schema
  * is `.strict()`-wrapped so unknown keys in an LLM-generated tool call
- * are rejected at parse time instead of silently dropped (mirrors
- * mercury / faxdrop).
+ * are rejected at parse time instead of silently dropped.
  *
  * Scope filter: tools whose `requiredScopes` are not all satisfied by
  * `authorizedScopes` are silently skipped — equivalent to the manual
@@ -99,8 +98,7 @@ export function defineTool<S extends ZodRawShape, O extends ZodRawShape = ZodRaw
   // raw `S` shape itself), so explicitly typing the callback as
   // `(args: z.infer<z.ZodObject<S>>) => …` would force TS to infer
   // `InputArgs = S` from the callback while `inputSchema = strictSchema`
-  // implies `InputArgs = ZodObject<…>` — a conflict. Mirror mercury's
-  // approach: hand the SDK a thin adapter whose signature is
+  // implies `InputArgs = ZodObject<…>` — a conflict. So hand the SDK a thin adapter whose signature is
   // intentionally untyped on the callback side, then re-type `args`
   // with a single cast before forwarding to the user's handler. The
   // runtime parse is still strict (the SDK validates against

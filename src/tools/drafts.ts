@@ -297,7 +297,7 @@ export function registerDraftTools(
         // off-allowlist via the Gmail UI or a separate session).
         //
         // CR follow-up (PR #100): the gate ONLY runs when
-        // `GMAIL_MCP_RECIPIENT_PAIRING=true`. Skipping the
+        // `GOOGLE_MCP_RECIPIENT_PAIRING=true`. Skipping the
         // pre-flight `drafts.get` when pairing is disabled saves
         // an unconditional API round-trip per send_draft call —
         // the dominant cost on every send for the 99 % of

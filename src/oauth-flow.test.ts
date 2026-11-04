@@ -47,8 +47,8 @@ const log = (msg: string, ...rest: unknown[]) => {
 };
 
 beforeEach(() => {
-  scratch = mkdtempSync(join(tmpdir(), "gmail-mcp-oauth-flow-test-"));
-  configDir = join(scratch, ".gmail-mcp");
+  scratch = mkdtempSync(join(tmpdir(), "google-mcp-oauth-flow-test-"));
+  configDir = join(scratch, ".google-mcp");
   oauthPath = join(configDir, "gcp-oauth.keys.json");
   credentialsPath = join(configDir, "credentials.json");
   logCapture = [];
@@ -92,9 +92,9 @@ describe("loadCredentials", () => {
   });
 
   it("does NOT create the configDir when skipConfigDirCreate=true and no oauth keys present", () => {
-    // Mirrors `src/index.ts` logic when GMAIL_OAUTH_PATH or
-    // GMAIL_CREDENTIALS_PATH override the default — the operator
-    // pointed elsewhere and may not want a stub ~/.gmail-mcp at $HOME.
+    // Mirrors `src/index.ts` logic when GOOGLE_MCP_OAUTH_PATH or
+    // GOOGLE_MCP_CREDENTIALS_PATH override the default — the operator
+    // pointed elsewhere and may not want a stub ~/.google-mcp at $HOME.
     loadCredentials({
       oauthPath,
       credentialsPath,
@@ -296,7 +296,7 @@ describe("loadCredentials", () => {
     // destination with `O_TRUNC` BEFORE reading the source, which
     // on POSIX truncates the file to 0 bytes and silently destroys
     // the OAuth keys. Pins the new same-path guard. Realistic
-    // trigger: `GMAIL_OAUTH_PATH=$(pwd)/gcp-oauth.keys.json`.
+    // trigger: `GOOGLE_MCP_OAUTH_PATH=$(pwd)/gcp-oauth.keys.json`.
     const samePath = join(scratch, "gcp-oauth.keys.json");
     const original = JSON.stringify({
       installed: { client_id: "id-same", client_secret: "secret-same" },
@@ -732,7 +732,7 @@ describe("authenticate", () => {
 describe("readJsonBounded", () => {
   let scratch: string;
   beforeEach(() => {
-    scratch = mkdtempSync(join(tmpdir(), "gmail-mcp-readjson-bounded-"));
+    scratch = mkdtempSync(join(tmpdir(), "google-mcp-readjson-bounded-"));
   });
   afterEach(() => {
     rmSync(scratch, { recursive: true, force: true });

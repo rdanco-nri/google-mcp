@@ -71,7 +71,7 @@ export function registerFilterTools(
     createFilterDef.description,
     CreateFilterSchema.shape,
     async (args) => {
-      // Forward action gate: when GMAIL_MCP_RECIPIENT_PAIRING=true,
+      // Forward action gate: when GOOGLE_MCP_RECIPIENT_PAIRING=true,
       // installing a server-side forwarding rule requires the
       // destination to be paired (mirrors send_email / reply_all /
       // draft_email). Closes the prompt-injection-driven exfil

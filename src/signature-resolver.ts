@@ -54,7 +54,7 @@ function bareEmail(from: string | undefined): string | undefined {
  * signature is configured or when the scope doesn't permit reading
  * sendAs settings.
  *
- * Honors `GMAIL_MCP_DISABLE_SIGNATURE=true` — set this env var to
+ * Honors `GOOGLE_MCP_DISABLE_SIGNATURE=true` — set this env var to
  * suppress auto-injection entirely (e.g. in tests, or when the caller
  * is constructing the body with their own signature already).
  */
@@ -62,7 +62,7 @@ export async function resolveSignature(
   gmail: gmail_v1.Gmail,
   sendAsEmail?: string,
 ): Promise<string | undefined> {
-  if (process.env.GMAIL_MCP_DISABLE_SIGNATURE === "true") return undefined;
+  if (process.env.GOOGLE_MCP_DISABLE_SIGNATURE === "true") return undefined;
 
   const key = bareEmail(sendAsEmail) ?? DEFAULT_KEY;
 
@@ -160,7 +160,7 @@ export const SIGNATURE_MARKER = 'data-gmail-mcp-signature="auto"';
  *      part.
  *
  * Callers that explicitly want plain-text-only output should set the
- * env var `GMAIL_MCP_DISABLE_SIGNATURE=true`, which makes
+ * env var `GOOGLE_MCP_DISABLE_SIGNATURE=true`, which makes
  * `resolveSignature` return undefined and skips this entire path.
  */
 export function injectSignature(

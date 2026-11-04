@@ -71,8 +71,8 @@ export async function buildEncodedRawMessage(args: EmailSendArgs): Promise<strin
  *     `references` are populated from the thread's existing messages
  *
  * Throws on:
- *   - recipient-pairing gate violation (when `GMAIL_MCP_RECIPIENT_PAIRING=true`
- *     and any To/Cc/Bcc address is not in `~/.gmail-mcp/paired.json`)
+ *   - recipient-pairing gate violation (when `GOOGLE_MCP_RECIPIENT_PAIRING=true`
+ *     and any To/Cc/Bcc address is not in `~/.google-mcp/paired.json`)
  *   - any Gmail API error from `messages.send` / `drafts.create`
  *
  * Thread-header resolution failures are logged to stderr and the send
@@ -85,8 +85,8 @@ export async function sendOrDraftEmail(
 ): Promise<EmailSendResult> {
   try {
     // Recipient pairing gate — no-op unless
-    // GMAIL_MCP_RECIPIENT_PAIRING=true. When enabled, every
-    // To/Cc/Bcc address must appear in ~/.gmail-mcp/paired.json
+    // GOOGLE_MCP_RECIPIENT_PAIRING=true. When enabled, every
+    // To/Cc/Bcc address must appear in ~/.google-mcp/paired.json
     // (manage via the `pair_recipient` tool). Caps the blast
     // radius of a prompt-injection-driven send.
     requirePairedRecipients([

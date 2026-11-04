@@ -50,7 +50,7 @@ describe("audit-log redactSensitive", () => {
     const out = redactSensitive(input) as Record<string, unknown>;
     // PII fields (to/subject) are also elided by default to keep audit
     // logs free of counterparty data. See ELIDED_KEYS + the
-    // GMAIL_MCP_AUDIT_LOG_VERBOSE escape hatch.
+    // GOOGLE_MCP_AUDIT_LOG_VERBOSE escape hatch.
     expect(out.to).toBe("[ELIDED:1 items]");
     expect(out.subject).toMatch(/^\[ELIDED:\d+ chars\]$/);
     expect(out.body).toMatch(/^\[ELIDED:\d+ chars\]$/);
@@ -80,11 +80,11 @@ describe("audit-log redactSensitive", () => {
     expect(Object.isFrozen(SENSITIVE_KEYS)).toBe(true);
   });
 
-  it("keeps PII fields readable when GMAIL_MCP_AUDIT_LOG_VERBOSE=true", async () => {
+  it("keeps PII fields readable when GOOGLE_MCP_AUDIT_LOG_VERBOSE=true", async () => {
     // The verbose escape hatch is evaluated at module load, so re-import
     // the module with the env var flipped on to exercise the branch.
-    const prev = process.env.GMAIL_MCP_AUDIT_LOG_VERBOSE;
-    process.env.GMAIL_MCP_AUDIT_LOG_VERBOSE = "true";
+    const prev = process.env.GOOGLE_MCP_AUDIT_LOG_VERBOSE;
+    process.env.GOOGLE_MCP_AUDIT_LOG_VERBOSE = "true";
     try {
       const { vi } = await import("vitest");
       vi.resetModules();
@@ -98,41 +98,41 @@ describe("audit-log redactSensitive", () => {
       expect(out.to).toEqual(["a@b.com"]);
       expect(out.subject).toBe("hi");
     } finally {
-      if (prev === undefined) delete process.env.GMAIL_MCP_AUDIT_LOG_VERBOSE;
-      else process.env.GMAIL_MCP_AUDIT_LOG_VERBOSE = prev;
+      if (prev === undefined) delete process.env.GOOGLE_MCP_AUDIT_LOG_VERBOSE;
+      else process.env.GOOGLE_MCP_AUDIT_LOG_VERBOSE = prev;
     }
   });
 });
 
 describe("audit-log logAudit", () => {
   let tmpDir: string;
-  const originalEnv = process.env.GMAIL_MCP_AUDIT_LOG;
+  const originalEnv = process.env.GOOGLE_MCP_AUDIT_LOG;
 
   beforeEach(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), "gmail-mcp-audit-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "google-mcp-audit-test-"));
   });
 
   afterEach(() => {
     rmSync(tmpDir, { recursive: true, force: true });
-    if (originalEnv === undefined) delete process.env.GMAIL_MCP_AUDIT_LOG;
-    else process.env.GMAIL_MCP_AUDIT_LOG = originalEnv;
+    if (originalEnv === undefined) delete process.env.GOOGLE_MCP_AUDIT_LOG;
+    else process.env.GOOGLE_MCP_AUDIT_LOG = originalEnv;
   });
 
-  it("is a no-op when GMAIL_MCP_AUDIT_LOG is unset", () => {
-    delete process.env.GMAIL_MCP_AUDIT_LOG;
+  it("is a no-op when GOOGLE_MCP_AUDIT_LOG is unset", () => {
+    delete process.env.GOOGLE_MCP_AUDIT_LOG;
     logAudit("send_email", { to: ["a@b.com"] }, "ok");
     // Nothing to assert other than "does not throw"
   });
 
   it("refuses relative paths and warns instead of writing", () => {
-    process.env.GMAIL_MCP_AUDIT_LOG = "relative/path.jsonl";
+    process.env.GOOGLE_MCP_AUDIT_LOG = "relative/path.jsonl";
     // Will hit console.error but must not create a file nor throw
     logAudit("send_email", {}, "ok");
   });
 
   it("writes a JSONL entry with mode 0o600 when given an absolute path", () => {
     const path = join(tmpDir, "audit.jsonl");
-    process.env.GMAIL_MCP_AUDIT_LOG = path;
+    process.env.GOOGLE_MCP_AUDIT_LOG = path;
     logAudit("send_email", { to: ["a@b.com"], access_token: "secret" }, "ok");
     // Open once and run both fstat + read via the same file descriptor
     // so CodeQL's TOCTOU check is satisfied (no window between the mode
@@ -162,7 +162,7 @@ describe("audit-log logAudit", () => {
 
   it("appends subsequent calls as new lines", () => {
     const path = join(tmpDir, "audit.jsonl");
-    process.env.GMAIL_MCP_AUDIT_LOG = path;
+    process.env.GOOGLE_MCP_AUDIT_LOG = path;
     logAudit("send_email", { to: ["a@b.com"] }, "ok");
     logAudit("delete_email", { messageId: "m1" }, "error");
     logAudit("send_email", { to: ["c@d.com"] }, "rate_limited");
@@ -183,7 +183,7 @@ describe("audit-log logAudit", () => {
     // the else branch would silently leak the raw value of a
     // numeric / object PII field into the audit log.
     const path = join(tmpDir, "audit.jsonl");
-    process.env.GMAIL_MCP_AUDIT_LOG = path;
+    process.env.GOOGLE_MCP_AUDIT_LOG = path;
     // `subject` is in PII_ELIDED_KEYS — passing a number / object /
     // boolean each lands on the else branch.
     logAudit("send_email", { subject: 42 }, "ok");
@@ -201,12 +201,12 @@ describe("audit-log logAudit", () => {
     // Pin the catch branch at `audit-log.ts:123-125`. The audit log
     // is fire-and-forget — a write failure (disk full, EACCES,
     // missing parent directory) must NEVER crash the tool handler.
-    // We point GMAIL_MCP_AUDIT_LOG at a path whose parent directory
+    // We point GOOGLE_MCP_AUDIT_LOG at a path whose parent directory
     // does not exist, which makes appendFileSync throw ENOENT, AND
     // assert that console.error was called with the expected
     // `[audit] failed to write` warning so the side effect is pinned
     // (not just crash-safety).
-    process.env.GMAIL_MCP_AUDIT_LOG = join(tmpDir, "no-such-dir", "audit.jsonl");
+    process.env.GOOGLE_MCP_AUDIT_LOG = join(tmpDir, "no-such-dir", "audit.jsonl");
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       expect(() => logAudit("send_email", { to: ["a@b.com"] }, "ok")).not.toThrow();

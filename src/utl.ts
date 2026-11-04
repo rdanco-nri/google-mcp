@@ -8,8 +8,8 @@ import nodemailer from "nodemailer";
 // Env-var names for the two jails. Hoisted to constants so a future
 // rename is a single-line change and the names cannot drift between
 // the resolver, the error messages, and the tests.
-const ENV_ATTACHMENT_DIR = "GMAIL_MCP_ATTACHMENT_DIR";
-const ENV_DOWNLOAD_DIR = "GMAIL_MCP_DOWNLOAD_DIR";
+const ENV_ATTACHMENT_DIR = "GOOGLE_MCP_ATTACHMENT_DIR";
+const ENV_DOWNLOAD_DIR = "GOOGLE_MCP_DOWNLOAD_DIR";
 
 /**
  * Resolve a jail root from an env var (or fall back to `~/<defaultName>/`),
@@ -40,16 +40,16 @@ function resolveJailDir(envVar: string, defaultName: string): string {
 }
 
 function getAttachmentDir(): string {
-  return resolveJailDir(ENV_ATTACHMENT_DIR, "GmailAttachments");
+  return resolveJailDir(ENV_ATTACHMENT_DIR, "GoogleMCP/attachments");
 }
 
 export function getDownloadDir(): string {
-  return resolveJailDir(ENV_DOWNLOAD_DIR, "GmailDownloads");
+  return resolveJailDir(ENV_DOWNLOAD_DIR, "GoogleMCP/downloads");
 }
 
 /**
  * Exposed for tests. Clears the in-process jail-root cache so a test
- * can flip `GMAIL_MCP_ATTACHMENT_DIR` / `GMAIL_MCP_DOWNLOAD_DIR`
+ * can flip `GOOGLE_MCP_ATTACHMENT_DIR` / `GOOGLE_MCP_DOWNLOAD_DIR`
  * between cases and see the new root take effect.
  */
 export function resetJailDirCache(): void {

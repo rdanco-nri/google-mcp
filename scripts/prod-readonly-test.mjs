@@ -7,10 +7,10 @@
 // crashes or comes back with `isError`.
 //
 // Env requirements (all optional except credentials, which the
-// server itself reads from ~/.gmail-mcp/ by default):
+// server itself reads from ~/.google-mcp/ by default):
 //
-//   GMAIL_MCP_OAUTH_KEYS_PATH   - override client_id/client_secret path
-//   GMAIL_MCP_CREDENTIALS_PATH  - override refresh-token path
+//   GOOGLE_MCP_OAUTH_PATH   - override client_id/client_secret path
+//   GOOGLE_MCP_CREDENTIALS_PATH  - override refresh-token path
 //
 // The OAuth token MUST carry at least `gmail.readonly`. The server's
 // scope filter hides write tools when that is all it has, so this
@@ -33,7 +33,7 @@ const transport = new StdioClientTransport({
   stderr: "inherit",
 });
 
-const client = new Client({ name: "gmail-mcp-smoke", version: "0.0.0" });
+const client = new Client({ name: "google-mcp-smoke", version: "0.0.0" });
 await client.connect(transport);
 
 const CALL_TIMEOUT_MS = 30_000;

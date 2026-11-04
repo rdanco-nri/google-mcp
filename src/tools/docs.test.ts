@@ -163,8 +163,8 @@ const threadsOf = (r: ToolResult) => (r.structuredContent as any).threads as any
 
 const originalEnv = { ...process.env };
 beforeEach(() => {
-  process.env.GMAIL_MCP_RATE_LIMIT_DISABLE = "1";
-  delete process.env.GMAIL_MCP_DRY_RUN;
+  process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE = "1";
+  delete process.env.GOOGLE_MCP_DRY_RUN;
 });
 afterEach(() => {
   process.env = { ...originalEnv };

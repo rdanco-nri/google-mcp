@@ -26,11 +26,11 @@ import { createServer } from "../server.js";
 import { resetRateLimitHistory } from "../rate-limit.js";
 import { resetJailDirCache } from "../utl.js";
 
-// Per-test rate-limit isolation: each test gets its own GMAIL_MCP_STATE_DIR
+// Per-test rate-limit isolation: each test gets its own GOOGLE_MCP_STATE_DIR
 // so the persistent rate-limit ledger does not leak across tests (without
 // this, the ~20 filter-tool calls below the 24h cap of the "filters"
 // bucket and subsequent tests get 429-ed). Same for download-jail
-// (GMAIL_MCP_DOWNLOAD_DIR + the in-process jail-root cache) so the
+// (GOOGLE_MCP_DOWNLOAD_DIR + the in-process jail-root cache) so the
 // download tests in PR #6 do not write to one another's directories.
 let stateDir: string;
 let downloadDir: string;
@@ -39,25 +39,25 @@ let pairedPath: string;
 const originalEnv = { ...process.env };
 
 beforeEach(() => {
-  stateDir = mkdtempSync(join(tmpdir(), "gmail-mcp-registrars-test-"));
-  downloadDir = mkdtempSync(join(tmpdir(), "gmail-mcp-download-test-"));
-  // Send-email attachment jail. Defaults to `~/GmailAttachments/` in
+  stateDir = mkdtempSync(join(tmpdir(), "google-mcp-registrars-test-"));
+  downloadDir = mkdtempSync(join(tmpdir(), "google-mcp-download-test-"));
+  // Send-email attachment jail. Defaults to `~/GoogleMCP/attachments/` in
   // production; pin per-test to a tempdir so the host's real
   // attachment dir is never touched and each test gets an isolated
   // realpath-resolved jail root.
-  attachmentDir = mkdtempSync(join(tmpdir(), "gmail-mcp-attach-test-"));
-  // pair_recipient writes to GMAIL_MCP_PAIRED_PATH — point it at a
+  attachmentDir = mkdtempSync(join(tmpdir(), "google-mcp-attach-test-"));
+  // pair_recipient writes to GOOGLE_MCP_PAIRED_PATH — point it at a
   // file inside the temp state-dir so each test gets a fresh
-  // allowlist and the host's real ~/.gmail-mcp/paired.json is never
+  // allowlist and the host's real ~/.google-mcp/paired.json is never
   // touched.
   pairedPath = join(stateDir, "paired.json");
-  process.env.GMAIL_MCP_PAIRED_PATH = pairedPath;
-  process.env.GMAIL_MCP_STATE_DIR = stateDir;
-  process.env.GMAIL_MCP_DOWNLOAD_DIR = downloadDir;
-  process.env.GMAIL_MCP_ATTACHMENT_DIR = attachmentDir;
-  delete process.env.GMAIL_MCP_RATE_LIMIT_DISABLE;
+  process.env.GOOGLE_MCP_PAIRED_PATH = pairedPath;
+  process.env.GOOGLE_MCP_STATE_DIR = stateDir;
+  process.env.GOOGLE_MCP_DOWNLOAD_DIR = downloadDir;
+  process.env.GOOGLE_MCP_ATTACHMENT_DIR = attachmentDir;
+  delete process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE;
   for (const k of Object.keys(process.env)) {
-    if (k.startsWith("GMAIL_MCP_RATE_LIMIT_") && k !== "GMAIL_MCP_RATE_LIMIT_DISABLE") {
+    if (k.startsWith("GOOGLE_MCP_RATE_LIMIT_") && k !== "GOOGLE_MCP_RATE_LIMIT_DISABLE") {
       delete process.env[k];
     }
   }
@@ -1116,7 +1116,7 @@ describe("PR #4 registrars — filter management", () => {
     // drops the `requirePairedRecipients` call silently re-opens
     // the prompt-injection-driven exfiltration channel on the
     // create_filter surface.
-    process.env.GMAIL_MCP_RECIPIENT_PAIRING = "true";
+    process.env.GOOGLE_MCP_RECIPIENT_PAIRING = "true";
     try {
       await withFix(["gmail.settings.basic"], async (fix) => {
         const result = (await fix.client.callTool({
@@ -1134,7 +1134,7 @@ describe("PR #4 registrars — filter management", () => {
         expect(fix.calls.filterCreate).toHaveLength(0);
       });
     } finally {
-      delete process.env.GMAIL_MCP_RECIPIENT_PAIRING;
+      delete process.env.GOOGLE_MCP_RECIPIENT_PAIRING;
     }
   });
 
@@ -1935,7 +1935,7 @@ describe("PR #7 registrars — send_email / draft_email (messaging.ts)", () => {
   it("send_email rejects an attachment outside the jail with the override hint", async () => {
     await withFix(["gmail.send"], async (fix) => {
       // Drop a file in a sibling tempdir — outside the configured
-      // GMAIL_MCP_ATTACHMENT_DIR. The path is absolute and the file
+      // GOOGLE_MCP_ATTACHMENT_DIR. The path is absolute and the file
       // exists, so the rejection comes from `assertInsideJail` (not
       // from the absolute-path or existsSync guards earlier in
       // `assertAttachmentPathAllowed`). Pins the prompt-injection
@@ -1958,7 +1958,7 @@ describe("PR #7 registrars — send_email / draft_email (messaging.ts)", () => {
       expect(result.content[0]?.text).toContain("outside the allowed");
       // The override hint names the env var so the operator knows
       // how to widen the jail if intentional.
-      expect(result.content[0]?.text).toContain("GMAIL_MCP_ATTACHMENT_DIR");
+      expect(result.content[0]?.text).toContain("GOOGLE_MCP_ATTACHMENT_DIR");
       // No Gmail call was issued — short-circuited inside Nodemailer.
       expect(fix.calls.messageSend).toHaveLength(0);
     });
@@ -2034,7 +2034,7 @@ describe("PR #7 registrars — pair_recipient", () => {
     });
   });
 
-  it("add → list round-trip persists the address through GMAIL_MCP_PAIRED_PATH", async () => {
+  it("add → list round-trip persists the address through GOOGLE_MCP_PAIRED_PATH", async () => {
     await withFix(["gmail.modify"], async (fix) => {
       const addRes = (await fix.client.callTool({
         name: "pair_recipient",
@@ -2052,9 +2052,9 @@ describe("PR #7 registrars — pair_recipient", () => {
       // Count went from 0 to 1, and the address appears as "  - …".
       expect(listRes.content[0]?.text).toContain("Paired recipients (1):");
       expect(listRes.content[0]?.text).toContain("  - trusted@example.com");
-      // CR finding: prove the GMAIL_MCP_PAIRED_PATH override is wired
+      // CR finding: prove the GOOGLE_MCP_PAIRED_PATH override is wired
       // through to the on-disk store. Without this, both the add and
-      // the list could silently route to ~/.gmail-mcp/paired.json on
+      // the list could silently route to ~/.google-mcp/paired.json on
       // the host and the round-trip text assertions would still pass.
       // Pin the file at `pairedPath` exists, parses, and contains the
       // address (lowercased per the recipient-pairing.ts contract).
@@ -2628,7 +2628,7 @@ describe("PR #6 registrars — download error paths", () => {
       ["gmail.readonly"],
       async (fix) => {
         // savePath is absolute and inside the jail (downloadDir is the
-        // GMAIL_MCP_DOWNLOAD_DIR set in beforeEach), so validation
+        // GOOGLE_MCP_DOWNLOAD_DIR set in beforeEach), so validation
         // passes and gmail.users.messages.get is reached. The mock then
         // throws a {.code = 502} Error which asGmailApiError formats as
         // "(HTTP 502)" in the catch-branch prefix.
@@ -3012,7 +3012,7 @@ describe("Drafts CRUD registrars — list_drafts / get_draft / update_draft / de
   });
 
   it("send_draft routes drafts.send with the id when pairing is disabled (no pre-flight fetch)", async () => {
-    // CR follow-up on PR #100: when GMAIL_MCP_RECIPIENT_PAIRING is
+    // CR follow-up on PR #100: when GOOGLE_MCP_RECIPIENT_PAIRING is
     // off (the default), send_draft must NOT pay the cost of an
     // unconditional drafts.get round-trip just to gate recipients.
     // Pin: drafts.send fires, drafts.get does NOT.
@@ -3037,7 +3037,7 @@ describe("Drafts CRUD registrars — list_drafts / get_draft / update_draft / de
     // The complementary path: with pairing enabled and the
     // recipient pre-paired, send_draft DOES pay the drafts.get
     // round-trip but the gate clears and drafts.send still fires.
-    process.env.GMAIL_MCP_RECIPIENT_PAIRING = "true";
+    process.env.GOOGLE_MCP_RECIPIENT_PAIRING = "true";
     try {
       await withFix(["gmail.modify"], async (fix) => {
         // Pre-pair the recipient that the mock's drafts.get
@@ -3068,7 +3068,7 @@ describe("Drafts CRUD registrars — list_drafts / get_draft / update_draft / de
         expect(fix.calls.draftSend).toHaveLength(1);
       });
     } finally {
-      delete process.env.GMAIL_MCP_RECIPIENT_PAIRING;
+      delete process.env.GOOGLE_MCP_RECIPIENT_PAIRING;
     }
   });
 
@@ -3083,7 +3083,7 @@ describe("Drafts CRUD registrars — list_drafts / get_draft / update_draft / de
     // gate fetches with `format=full`, the mock returns the Bcc
     // header verbatim, the gate sees the unpaired recipient, and
     // `drafts.send` is short-circuited.
-    process.env.GMAIL_MCP_RECIPIENT_PAIRING = "true";
+    process.env.GOOGLE_MCP_RECIPIENT_PAIRING = "true";
     try {
       await withFix(
         ["gmail.modify"],
@@ -3116,7 +3116,7 @@ describe("Drafts CRUD registrars — list_drafts / get_draft / update_draft / de
         { draftBccHeader: "eve@evil.example" },
       );
     } finally {
-      delete process.env.GMAIL_MCP_RECIPIENT_PAIRING;
+      delete process.env.GOOGLE_MCP_RECIPIENT_PAIRING;
     }
   });
 
@@ -3128,7 +3128,7 @@ describe("Drafts CRUD registrars — list_drafts / get_draft / update_draft / de
     // pairing checks alice (paired), Gmail sends to BOTH. The
     // gate must walk every matching header instance and pass the
     // union of mailboxes to `requirePairedRecipients`.
-    process.env.GMAIL_MCP_RECIPIENT_PAIRING = "true";
+    process.env.GOOGLE_MCP_RECIPIENT_PAIRING = "true";
     try {
       await withFix(
         ["gmail.modify"],
@@ -3162,7 +3162,7 @@ describe("Drafts CRUD registrars — list_drafts / get_draft / update_draft / de
         },
       );
     } finally {
-      delete process.env.GMAIL_MCP_RECIPIENT_PAIRING;
+      delete process.env.GOOGLE_MCP_RECIPIENT_PAIRING;
     }
   });
 
@@ -3173,7 +3173,7 @@ describe("Drafts CRUD registrars — list_drafts / get_draft / update_draft / de
     // which is NOT in the paired allowlist. The gate must fire on
     // the union of To/Cc/Bcc parsed from the draft's headers and
     // throw before the drafts.send call lands.
-    process.env.GMAIL_MCP_RECIPIENT_PAIRING = "true";
+    process.env.GOOGLE_MCP_RECIPIENT_PAIRING = "true";
     try {
       await withFix(["gmail.modify"], async (fix) => {
         const result = (await fix.client.callTool({
@@ -3188,7 +3188,7 @@ describe("Drafts CRUD registrars — list_drafts / get_draft / update_draft / de
         expect(fix.calls.draftSend).toHaveLength(0);
       });
     } finally {
-      delete process.env.GMAIL_MCP_RECIPIENT_PAIRING;
+      delete process.env.GOOGLE_MCP_RECIPIENT_PAIRING;
     }
   });
 

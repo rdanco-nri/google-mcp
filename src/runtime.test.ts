@@ -38,8 +38,8 @@ const log = (msg: string, ...rest: unknown[]) => {
 };
 
 beforeEach(() => {
-  scratch = mkdtempSync(join(tmpdir(), "gmail-mcp-runtime-test-"));
-  configDir = join(scratch, ".gmail-mcp");
+  scratch = mkdtempSync(join(tmpdir(), "google-mcp-runtime-test-"));
+  configDir = join(scratch, ".google-mcp");
   oauthPath = join(configDir, "gcp-oauth.keys.json");
   credentialsPath = join(configDir, "credentials.json");
   logCapture = [];
@@ -162,30 +162,30 @@ describe("parseTimeoutMs", () => {
 
   it("falls back to DEFAULT_TIMEOUT_MS + warns on a negative value", () => {
     expect(parseTimeoutMs("-1000", log)).toBe(DEFAULT_TIMEOUT_MS);
-    expect(logCapture.join("\n")).toContain('Invalid GMAIL_MCP_TIMEOUT_MS="-1000"');
+    expect(logCapture.join("\n")).toContain('Invalid GOOGLE_MCP_TIMEOUT_MS="-1000"');
     expect(logCapture.join("\n")).toContain("must be a positive integer");
   });
 
   it("falls back to DEFAULT_TIMEOUT_MS + warns on zero", () => {
     expect(parseTimeoutMs("0", log)).toBe(DEFAULT_TIMEOUT_MS);
-    expect(logCapture.join("\n")).toContain('Invalid GMAIL_MCP_TIMEOUT_MS="0"');
+    expect(logCapture.join("\n")).toContain('Invalid GOOGLE_MCP_TIMEOUT_MS="0"');
   });
 
   it("falls back to DEFAULT_TIMEOUT_MS + warns on a decimal", () => {
     // Number.isInteger("30.5") → false → fallback
     expect(parseTimeoutMs("30.5", log)).toBe(DEFAULT_TIMEOUT_MS);
-    expect(logCapture.join("\n")).toContain('Invalid GMAIL_MCP_TIMEOUT_MS="30.5"');
+    expect(logCapture.join("\n")).toContain('Invalid GOOGLE_MCP_TIMEOUT_MS="30.5"');
   });
 
   it("falls back to DEFAULT_TIMEOUT_MS + warns on a non-numeric string", () => {
     expect(parseTimeoutMs("not-a-number", log)).toBe(DEFAULT_TIMEOUT_MS);
-    expect(logCapture.join("\n")).toContain('Invalid GMAIL_MCP_TIMEOUT_MS="not-a-number"');
+    expect(logCapture.join("\n")).toContain('Invalid GOOGLE_MCP_TIMEOUT_MS="not-a-number"');
   });
 
   it("falls back to DEFAULT_TIMEOUT_MS + warns on the empty string", () => {
     // `Number("")` returns 0 — caught by the > 0 guard.
     expect(parseTimeoutMs("", log)).toBe(DEFAULT_TIMEOUT_MS);
-    expect(logCapture.join("\n")).toContain('Invalid GMAIL_MCP_TIMEOUT_MS=""');
+    expect(logCapture.join("\n")).toContain('Invalid GOOGLE_MCP_TIMEOUT_MS=""');
   });
 });
 
@@ -228,7 +228,7 @@ describe("runServer auth subcommand", () => {
   it("exits with code 1 when --scopes contains an invalid shorthand", async () => {
     const { caughtCode, logs } = await expectExit({
       argv: ["node", "index.js", "auth", "--scopes=gmail.notarealscope"],
-      env: { GMAIL_OAUTH_PATH: oauthPath, GMAIL_CREDENTIALS_PATH: credentialsPath },
+      env: { GOOGLE_MCP_OAUTH_PATH: oauthPath, GOOGLE_MCP_CREDENTIALS_PATH: credentialsPath },
       expectedCode: 1,
     });
     expect(caughtCode).toBe(1);
@@ -243,7 +243,7 @@ describe("runServer auth subcommand", () => {
     // diagnostic instead of silently no-op'ing or crashing.
     const { caughtCode, logs } = await expectExit({
       argv: ["node", "index.js", "auth"],
-      env: { GMAIL_OAUTH_PATH: oauthPath, GMAIL_CREDENTIALS_PATH: credentialsPath },
+      env: { GOOGLE_MCP_OAUTH_PATH: oauthPath, GOOGLE_MCP_CREDENTIALS_PATH: credentialsPath },
       expectedCode: 1,
     });
     expect(caughtCode).toBe(1);
@@ -259,7 +259,7 @@ describe("runServer auth subcommand", () => {
     mkdirSync(configDir, { recursive: true, mode: 0o700 });
     const { logs } = await expectExit({
       argv: ["node", "index.js", "auth"],
-      env: { GMAIL_OAUTH_PATH: oauthPath, GMAIL_CREDENTIALS_PATH: credentialsPath },
+      env: { GOOGLE_MCP_OAUTH_PATH: oauthPath, GOOGLE_MCP_CREDENTIALS_PATH: credentialsPath },
       expectedCode: 1,
     });
     expect(logs).toContain("No --scopes flag specified, using defaults");
@@ -287,7 +287,7 @@ describe("runServer auth subcommand", () => {
         "http://localhost:1023/oauth2callback",
         "--scopes=gmail.readonly",
       ],
-      env: { GMAIL_OAUTH_PATH: oauthPath, GMAIL_CREDENTIALS_PATH: credentialsPath },
+      env: { GOOGLE_MCP_OAUTH_PATH: oauthPath, GOOGLE_MCP_CREDENTIALS_PATH: credentialsPath },
       expectedCode: 1,
     });
     expect(caughtCode).toBe(1);
@@ -320,7 +320,7 @@ describe("runServer auth subcommand", () => {
     };
     await runServer({
       argv: ["node", "index.js"],
-      env: { GMAIL_OAUTH_PATH: oauthPath, GMAIL_CREDENTIALS_PATH: credentialsPath },
+      env: { GOOGLE_MCP_OAUTH_PATH: oauthPath, GOOGLE_MCP_CREDENTIALS_PATH: credentialsPath },
       log,
       exit: exitFn,
     }).catch((err: unknown) => {

@@ -93,9 +93,9 @@ export interface LoadCredentialsOpts {
   configDir: string;
   /**
    * Whether to skip the `mkdirSync(configDir)` step when env vars
-   * point at custom paths outside the default `~/.gmail-mcp` tree.
-   * `src/index.ts` honours `GMAIL_OAUTH_PATH` / `GMAIL_CREDENTIALS_PATH`
-   * — when either is set, the default `~/.gmail-mcp` directory must
+   * point at custom paths outside the default `~/.google-mcp` tree.
+   * `src/index.ts` honours `GOOGLE_MCP_OAUTH_PATH` / `GOOGLE_MCP_CREDENTIALS_PATH`
+   * — when either is set, the default `~/.google-mcp` directory must
    * not be auto-created.
    */
   skipConfigDirCreate: boolean;
@@ -170,7 +170,7 @@ export function loadCredentials(opts: LoadCredentialsOpts): LoadCredentialsResul
 
     if (fs.existsSync(localOAuthPath)) {
       // Skip the copy when source and destination are the same
-      // file — e.g. `GMAIL_OAUTH_PATH=$(pwd)/gcp-oauth.keys.json`
+      // file — e.g. `GOOGLE_MCP_OAUTH_PATH=$(pwd)/gcp-oauth.keys.json`
       // (the cwd file IS the configured path), or the default
       // resolution lands on the same realpath. Without this guard
       // `fs.copyFileSync` opens the destination with `O_TRUNC`
@@ -198,8 +198,8 @@ export function loadCredentials(opts: LoadCredentialsOpts): LoadCredentialsResul
       } else {
         // Copy from cwd to the global config. The `mkdir` here
         // covers the case where `skipConfigDirCreate` is true
-        // because only `GMAIL_CREDENTIALS_PATH` was overridden —
-        // `OAUTH_PATH` still defaults under `~/.gmail-mcp` and
+        // because only `GOOGLE_MCP_CREDENTIALS_PATH` was overridden —
+        // `OAUTH_PATH` still defaults under `~/.google-mcp` and
         // would ENOENT without explicit mkdir. Also force `0o600`:
         // `copyFileSync` preserves the source mode, so a `0o644`
         // cwd file would keep that mode.

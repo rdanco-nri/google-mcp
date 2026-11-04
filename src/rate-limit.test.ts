@@ -15,11 +15,11 @@ describe("rate-limit", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
-    stateDir = mkdtempSync(join(tmpdir(), "gmail-mcp-ratelimit-test-"));
-    process.env.GMAIL_MCP_STATE_DIR = stateDir;
-    delete process.env.GMAIL_MCP_RATE_LIMIT_DISABLE;
+    stateDir = mkdtempSync(join(tmpdir(), "google-mcp-ratelimit-test-"));
+    process.env.GOOGLE_MCP_STATE_DIR = stateDir;
+    delete process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE;
     for (const k of Object.keys(process.env)) {
-      if (k.startsWith("GMAIL_MCP_RATE_LIMIT_") && k !== "GMAIL_MCP_RATE_LIMIT_DISABLE") {
+      if (k.startsWith("GOOGLE_MCP_RATE_LIMIT_") && k !== "GOOGLE_MCP_RATE_LIMIT_DISABLE") {
         delete process.env[k];
       }
     }
@@ -54,7 +54,7 @@ describe("rate-limit", () => {
   });
 
   it("accepts a valid env override", () => {
-    process.env.GMAIL_MCP_RATE_LIMIT_send = "2/day,10/month";
+    process.env.GOOGLE_MCP_RATE_LIMIT_send = "2/day,10/month";
     expect(() => enforceRateLimit("send_email")).not.toThrow();
     expect(() => enforceRateLimit("send_email")).not.toThrow();
     // Third call should hit the daily cap of 2
@@ -62,13 +62,13 @@ describe("rate-limit", () => {
   });
 
   it("rejects malformed override and falls back to default (does not crash)", () => {
-    process.env.GMAIL_MCP_RATE_LIMIT_send = "not a valid value";
+    process.env.GOOGLE_MCP_RATE_LIMIT_send = "not a valid value";
     // Default is 100/day for send — must not throw on the first call
     expect(() => enforceRateLimit("send_email")).not.toThrow();
   });
 
   it("emits a daily RateLimitError with retry_after under 24h", () => {
-    process.env.GMAIL_MCP_RATE_LIMIT_send = "1/day,100/month";
+    process.env.GOOGLE_MCP_RATE_LIMIT_send = "1/day,100/month";
     enforceRateLimit("send_email");
     try {
       enforceRateLimit("send_email");
@@ -85,7 +85,7 @@ describe("rate-limit", () => {
   });
 
   it("emits a monthly RateLimitError when the monthly cap is hit before daily", () => {
-    process.env.GMAIL_MCP_RATE_LIMIT_send = "100/day,2/month";
+    process.env.GOOGLE_MCP_RATE_LIMIT_send = "100/day,2/month";
     enforceRateLimit("send_email");
     enforceRateLimit("send_email");
     try {
@@ -99,9 +99,9 @@ describe("rate-limit", () => {
     }
   });
 
-  it("GMAIL_MCP_RATE_LIMIT_DISABLE=true disables the limiter entirely", () => {
-    process.env.GMAIL_MCP_RATE_LIMIT_send = "1/day,1/month";
-    process.env.GMAIL_MCP_RATE_LIMIT_DISABLE = "true";
+  it("GOOGLE_MCP_RATE_LIMIT_DISABLE=true disables the limiter entirely", () => {
+    process.env.GOOGLE_MCP_RATE_LIMIT_send = "1/day,1/month";
+    process.env.GOOGLE_MCP_RATE_LIMIT_DISABLE = "true";
     // Would have thrown on the second call with limits 1/day, 1/month
     for (let i = 0; i < 5; i++) {
       expect(() => enforceRateLimit("send_email")).not.toThrow();
@@ -109,7 +109,7 @@ describe("rate-limit", () => {
   });
 
   it("shares state between send_email and reply_all (same bucket)", () => {
-    process.env.GMAIL_MCP_RATE_LIMIT_send = "2/day,100/month";
+    process.env.GOOGLE_MCP_RATE_LIMIT_send = "2/day,100/month";
     enforceRateLimit("send_email");
     enforceRateLimit("reply_all");
     // Both share bucket "send" → 2 calls already consumed, third throws
@@ -117,15 +117,15 @@ describe("rate-limit", () => {
   });
 
   it("does not share state between different buckets", () => {
-    process.env.GMAIL_MCP_RATE_LIMIT_send = "1/day,100/month";
-    process.env.GMAIL_MCP_RATE_LIMIT_delete = "1/day,100/month";
+    process.env.GOOGLE_MCP_RATE_LIMIT_send = "1/day,100/month";
+    process.env.GOOGLE_MCP_RATE_LIMIT_delete = "1/day,100/month";
     enforceRateLimit("send_email");
     // delete_email is a different bucket, should not be affected
     expect(() => enforceRateLimit("delete_email")).not.toThrow();
   });
 
   it("persists state to <stateDir>/ratelimit.json with mode 0o600", () => {
-    process.env.GMAIL_MCP_RATE_LIMIT_send = "10/day,100/month";
+    process.env.GOOGLE_MCP_RATE_LIMIT_send = "10/day,100/month";
     enforceRateLimit("send_email");
     const statePath = join(stateDir, "ratelimit.json");
     // Open once and run both fstat + read via the same file descriptor
@@ -153,7 +153,7 @@ describe("rate-limit", () => {
     expect(parsed.source).toBe("mcp_safeguard");
     expect(parsed.error_type).toBe("mcp_rate_limit_daily_exceeded");
     expect(parsed.retry_after).toMatch(/^\d{4}-\d{2}-\d{2}T/);
-    expect(parsed.hint).toContain("GMAIL_MCP_RATE_LIMIT_send");
+    expect(parsed.hint).toContain("GOOGLE_MCP_RATE_LIMIT_send");
   });
 
   it("formatRateLimitError marks monthly errors with the right error_type", () => {

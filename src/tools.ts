@@ -425,7 +425,7 @@ export const GetInboxWithThreadsSchema = z
 
 // Recipient pairing gate schema — opt-in allowlist ops (add/remove/list).
 // Gate itself is enforced in handleEmailAction + reply_all when
-// GMAIL_MCP_RECIPIENT_PAIRING=true. See src/recipient-pairing.ts.
+// GOOGLE_MCP_RECIPIENT_PAIRING=true. See src/recipient-pairing.ts.
 //
 // `email` is shape-checked at the schema layer with the same RFC 5322
 // parser (`email-addresses.parseOneAddress`) used by send/reply/draft —
@@ -660,7 +660,7 @@ export const DriveReadFileSchema = z.object({
     .string()
     .optional()
     .describe(
-      "For binary files only — directory inside GMAIL_MCP_DOWNLOAD_DIR to save to. Defaults to the download dir root.",
+      "For binary files only — directory inside GOOGLE_MCP_DOWNLOAD_DIR to save to. Defaults to the download dir root.",
     ),
 });
 
@@ -675,7 +675,7 @@ export const DriveDownloadFileSchema = z.object({
   savePath: z
     .string()
     .optional()
-    .describe("Directory inside GMAIL_MCP_DOWNLOAD_DIR. Defaults to the download dir root."),
+    .describe("Directory inside GOOGLE_MCP_DOWNLOAD_DIR. Defaults to the download dir root."),
 });
 
 export const DriveListSharedDrivesSchema = z.object({
@@ -717,7 +717,7 @@ export const DriveUploadFileSchema = z.object({
     .string()
     .min(1)
     .describe(
-      "Absolute local path of the file to upload. Must sit inside GMAIL_MCP_ATTACHMENT_DIR (default ~/GmailAttachments) or GMAIL_MCP_DOWNLOAD_DIR (default ~/GmailDownloads); any other location is refused before any API call.",
+      "Absolute local path of the file to upload. Must sit inside GOOGLE_MCP_ATTACHMENT_DIR (default ~/GoogleMCP/attachments) or GOOGLE_MCP_DOWNLOAD_DIR (default ~/GoogleMCP/downloads); any other location is refused before any API call.",
     ),
   name: z
     .string()
@@ -968,7 +968,7 @@ export const SheetsWriteTabSchema = z.object({
     .optional()
     .default(false)
     .describe(
-      "If true, returns the tab's current rows alongside the rows that would be written, without calling the Sheets write API. Use to preview the diff before committing. Independent of the global GMAIL_MCP_DRY_RUN env var, which only echoes back the call args without reading the live sheet.",
+      "If true, returns the tab's current rows alongside the rows that would be written, without calling the Sheets write API. Use to preview the diff before committing. Independent of the global GOOGLE_MCP_DRY_RUN env var, which only echoes back the call args without reading the live sheet.",
     ),
 });
 
@@ -1226,7 +1226,7 @@ export const toolDefinitions: ToolDefinition[] = [
       "",
       "USE WHEN: composing and dispatching a fresh outbound email. ALWAYS confirm recipients, subject, body, and attachments with the user before calling — there is no draft step.",
       "",
-      "DO NOT USE: to reply to an existing thread (use `reply_all` for full-list replies; threading headers are set automatically). To stage a draft for later review, use `draft_email`. To send to a recipient that has not been pre-approved when `GMAIL_MCP_RECIPIENT_PAIRING` is enabled, the call will be rejected — pair the address first via `pair_recipient`.",
+      "DO NOT USE: to reply to an existing thread (use `reply_all` for full-list replies; threading headers are set automatically). To stage a draft for later review, use `draft_email`. To send to a recipient that has not been pre-approved when `GOOGLE_MCP_RECIPIENT_PAIRING` is enabled, the call will be rejected — pair the address first via `pair_recipient`.",
       "",
       "SIDE EFFECTS: real email leaves the account, recorded in the `Sent` mailbox, billed against the account's daily send quota. Audit log entry on the MCP host.",
     ].join("\n"),
@@ -1237,13 +1237,13 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "pair_recipient",
     description: [
-      "Manage the paired-recipient allowlist (`~/.gmail-mcp/paired.json`). Actions: `add`, `remove`, `list`. Only effective when `GMAIL_MCP_RECIPIENT_PAIRING` is enabled.",
+      "Manage the paired-recipient allowlist (`~/.google-mcp/paired.json`). Actions: `add`, `remove`, `list`. Only effective when `GOOGLE_MCP_RECIPIENT_PAIRING` is enabled.",
       "",
       "USE WHEN: pre-approving a To/Cc/Bcc address so future `send_email` / `reply_all` / `draft_email` calls go through without per-call confirmation. Designed to cap the blast radius of a prompt-injected send.",
       "",
       "DO NOT USE: with the gate disabled — pairing has no effect there. ALWAYS confirm with the user before adding an address: paired addresses can be emailed without further approval.",
       "",
-      "SIDE EFFECTS: writes to `~/.gmail-mcp/paired.json` on the MCP host. Persistent across runs. Idempotent on `add` (re-adding the same address is a no-op).",
+      "SIDE EFFECTS: writes to `~/.google-mcp/paired.json` on the MCP host. Persistent across runs. Idempotent on `add` (re-adding the same address is a no-op).",
     ].join("\n"),
     schema: PairRecipientSchema,
     // Exposed wherever the send surface is; an operator with a
@@ -1532,7 +1532,7 @@ export const toolDefinitions: ToolDefinition[] = [
       "",
       "DO NOT USE: for common patterns (newsletter routing, vendor invoices, etc.) — `create_filter_from_template` covers those with safer defaults. Filters are not idempotent — calling twice creates two filters firing duplicate actions.",
       "",
-      "SIDE EFFECTS: writes a new filter rule on Gmail's side. Persistent. Affects every future incoming message that matches the criteria. The optional `action.forward` field installs a persistent forwarding rule and is therefore gated by the same recipient-pairing allowlist as `send_email` / `reply_all` / `draft_email` when `GMAIL_MCP_RECIPIENT_PAIRING=true` — pair the address via `pair_recipient` first. Requires `gmail.settings.basic` scope.",
+      "SIDE EFFECTS: writes a new filter rule on Gmail's side. Persistent. Affects every future incoming message that matches the criteria. The optional `action.forward` field installs a persistent forwarding rule and is therefore gated by the same recipient-pairing allowlist as `send_email` / `reply_all` / `draft_email` when `GOOGLE_MCP_RECIPIENT_PAIRING=true` — pair the address via `pair_recipient` first. Requires `gmail.settings.basic` scope.",
     ].join("\n"),
     schema: CreateFilterSchema,
     scopes: ["gmail.settings.basic"],
@@ -1579,7 +1579,7 @@ export const toolDefinitions: ToolDefinition[] = [
       "",
       "DO NOT USE: when the user only wants to reply to the sender — use `reply_to_email` for sender-only replies. To stage a draft for review, use `draft_email`.",
       "",
-      "SIDE EFFECTS: real email leaves the account, recorded in the `Sent` mailbox, billed against daily send quota. Subject to the same `GMAIL_MCP_RECIPIENT_PAIRING` gate as `send_email`.",
+      "SIDE EFFECTS: real email leaves the account, recorded in the `Sent` mailbox, billed against daily send quota. Subject to the same `GOOGLE_MCP_RECIPIENT_PAIRING` gate as `send_email`.",
     ].join("\n"),
     schema: ReplyAllSchema,
     scopes: ["gmail.modify", "gmail.compose", "gmail.send"],
@@ -1596,7 +1596,7 @@ export const toolDefinitions: ToolDefinition[] = [
       "",
       "DO NOT USE: when every original recipient should receive the response (use `reply_all`). To stage a draft for review instead of sending, use `draft_email`.",
       "",
-      "SIDE EFFECTS: real email leaves the account, recorded in the `Sent` mailbox, billed against daily send quota. Subject to the same `GMAIL_MCP_RECIPIENT_PAIRING` gate as `send_email`.",
+      "SIDE EFFECTS: real email leaves the account, recorded in the `Sent` mailbox, billed against daily send quota. Subject to the same `GOOGLE_MCP_RECIPIENT_PAIRING` gate as `send_email`.",
     ].join("\n"),
     schema: ReplyToEmailSchema,
     scopes: ["gmail.modify", "gmail.compose", "gmail.send"],
@@ -1635,13 +1635,13 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "drive_read_file",
     description: [
-      "Read a Drive file's content into the LLM context (or save it to disk if binary). Dispatches on mimeType: Google Docs → markdown (with text/plain fallback); Google Sheets → all tabs as CSV via Sheets API (multi-tab safe — Drive's files.export(text/csv) only returns the first tab); Google Slides → structured outline via Slides API (slide titles + bullets + speaker notes); PDFs / images / arbitrary binaries → saved under GMAIL_MCP_DOWNLOAD_DIR. Shortcuts resolve to their target before reading.",
+      "Read a Drive file's content into the LLM context (or save it to disk if binary). Dispatches on mimeType: Google Docs → markdown (with text/plain fallback); Google Sheets → all tabs as CSV via Sheets API (multi-tab safe — Drive's files.export(text/csv) only returns the first tab); Google Slides → structured outline via Slides API (slide titles + bullets + speaker notes); PDFs / images / arbitrary binaries → saved under GOOGLE_MCP_DOWNLOAD_DIR. Shortcuts resolve to their target before reading.",
       "",
       "USE WHEN: pulling Drive content into the conversation. The single tool covers every common filetype Rob touches; use `drive_download_file` only when you need the raw binary path without parsing.",
       "",
       "DO NOT USE: on Drive folders (returns a structured error suggesting drive_search with `'<folderId>' in parents`). Drawings / Forms / Jamboards have no useful text export and return a structured error rather than a silent empty file. Files exceeding Drive's 10 MB export cap return `exportSizeLimitExceeded` — fall back to `drive_download_file` for the raw bytes.",
       "",
-      "SIDE EFFECTS: text content is returned inline (truncated with a marker if it exceeds `maxChars`). Binary files are written to GMAIL_MCP_DOWNLOAD_DIR via the same O_NOFOLLOW/O_EXCL jail used for Gmail attachments — destination path is returned in the response.",
+      "SIDE EFFECTS: text content is returned inline (truncated with a marker if it exceeds `maxChars`). Binary files are written to GOOGLE_MCP_DOWNLOAD_DIR via the same O_NOFOLLOW/O_EXCL jail used for Gmail attachments — destination path is returned in the response.",
     ].join("\n"),
     schema: DriveReadFileSchema,
     scopes: ["drive", "drive.readonly"],
@@ -1650,13 +1650,13 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "drive_download_file",
     description: [
-      "Download a non-Workspace Drive file (PDF, image, Office doc, arbitrary binary) to GMAIL_MCP_DOWNLOAD_DIR.",
+      "Download a non-Workspace Drive file (PDF, image, Office doc, arbitrary binary) to GOOGLE_MCP_DOWNLOAD_DIR.",
       "",
       "USE WHEN: persisting a binary to disk for downstream tooling, or when `drive_read_file` returned an `exportSizeLimitExceeded` and you want the raw bytes anyway.",
       "",
       "DO NOT USE: on native Google Workspace types (Docs / Sheets / Slides) — Drive returns 403 on `alt=media` for those; use `drive_read_file` which routes through `files.export` / Sheets API / Slides API instead. To read inline content, use `drive_read_file`.",
       "",
-      "SIDE EFFECTS: writes a file under GMAIL_MCP_DOWNLOAD_DIR using the same O_NOFOLLOW/O_EXCL jail as Gmail attachments. Returns the absolute path.",
+      "SIDE EFFECTS: writes a file under GOOGLE_MCP_DOWNLOAD_DIR using the same O_NOFOLLOW/O_EXCL jail as Gmail attachments. Returns the absolute path.",
     ].join("\n"),
     schema: DriveDownloadFileSchema,
     scopes: ["drive", "drive.readonly"],
@@ -1710,7 +1710,7 @@ export const toolDefinitions: ToolDefinition[] = [
       "",
       "USE WHEN: a deck or sheet was built locally (e.g. a python-pptx deck on the Newton template) and must exist as a Google Slides / Sheets file with its theme, layouts, and formatting intact, or the user hands over a Word or Excel file to put in Drive. Conversion happens once, at upload, by Drive's own importer — the same one the Slides UI uses for 'Import slides'. With `replaceFileId`, the upload overwrites that file's content in place so its URL and sharing survive; whether Drive re-converts an Office file onto an existing native file is not guaranteed — check the result's mimeType.",
       "",
-      "DO NOT USE: for files outside GMAIL_MCP_ATTACHMENT_DIR / GMAIL_MCP_DOWNLOAD_DIR (refused before any API call — copy the file into one of those jails first). Files over 5 MB are refused (multipart upload cap; resumable upload is not implemented). To make a Google Doc from text or markdown you wrote: a .docx from pandoc or python-docx arrives without tabs, column widths, or the table style, so build the doc with `docs_create_release_doc` and `docs_write_tab` instead. For an unbranded deck from a text outline, use `slides_create_deck_from_outline`.",
+      "DO NOT USE: for files outside GOOGLE_MCP_ATTACHMENT_DIR / GOOGLE_MCP_DOWNLOAD_DIR (refused before any API call — copy the file into one of those jails first). Files over 5 MB are refused (multipart upload cap; resumable upload is not implemented). To make a Google Doc from text or markdown you wrote: a .docx from pandoc or python-docx arrives without tabs, column widths, or the table style, so build the doc with `docs_create_release_doc` and `docs_write_tab` instead. For an unbranded deck from a text outline, use `slides_create_deck_from_outline`.",
       "",
       "SIDE EFFECTS: one `files.create` (or `files.update` with `replaceFileId`) with multipart media. A new file counts toward Drive storage; a converted file is Google-native and cannot be downloaded raw afterwards (use `drive_read_file`). Requires the `drive` scope.",
     ].join("\n"),
@@ -1907,7 +1907,7 @@ export const toolDefinitions: ToolDefinition[] = [
       "",
       "DO NOT USE: to reply within the same thread (use `reply_to_email` or `reply_all`). To stage a draft for review, use `draft_email`. Attachments from the source message are NOT re-attached automatically — chain `download_attachment` then pass the resulting paths via `attachments` if you want them carried over.",
       "",
-      "SIDE EFFECTS: real email leaves the account in a new thread, recorded in the `Sent` mailbox, billed against daily send quota. Subject to the same `GMAIL_MCP_RECIPIENT_PAIRING` gate as `send_email`.",
+      "SIDE EFFECTS: real email leaves the account in a new thread, recorded in the `Sent` mailbox, billed against daily send quota. Subject to the same `GOOGLE_MCP_RECIPIENT_PAIRING` gate as `send_email`.",
     ].join("\n"),
     schema: ForwardEmailSchema,
     scopes: ["gmail.modify", "gmail.compose", "gmail.send"],

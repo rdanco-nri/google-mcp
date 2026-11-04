@@ -163,9 +163,9 @@ describe("FilePathSchema — attachment path hardening (CR #40 outside-diff)", (
       to: ["a@example.com"],
       subject: "x",
       body: "y",
-      attachments: ["/Users/me/GmailAttachments/file.pdf"],
+      attachments: ["/Users/me/GoogleMCP/attachments/file.pdf"],
     });
-    expect(r.attachments).toEqual(["/Users/me/GmailAttachments/file.pdf"]);
+    expect(r.attachments).toEqual(["/Users/me/GoogleMCP/attachments/file.pdf"]);
   });
 
   it("rejects an empty string path", () => {
