@@ -1,7 +1,7 @@
 import emailAddresses from "email-addresses";
 import { z } from "zod";
 
-// Gmail API IDs (messageId, threadId, labelId, attachmentId) are base64url
+// Gmail API IDs (messageId, threadId, labelId) are base64url
 // strings. Bounding them (non-empty, ≤ 256 chars, base64url charset) stops
 // a prompt-injected agent from forging megabyte-sized IDs that would burn
 // a round-trip and then leak their prefix through batch error logs.
@@ -9,6 +9,13 @@ const GmailIdSchema = z
   .string()
   .min(1)
   .max(256)
+  .regex(/^[A-Za-z0-9_-]+$/);
+
+// Attachment IDs are the exception: Gmail issues them at 500+ chars.
+const GmailAttachmentIdSchema = z
+  .string()
+  .min(1)
+  .max(2048)
   .regex(/^[A-Za-z0-9_-]+$/);
 
 // User-supplied filesystem paths. The attachment jail in `src/utl.ts`
@@ -343,7 +350,7 @@ export const CreateFilterFromTemplateSchema = z
 
 export const DownloadAttachmentSchema = z.object({
   messageId: GmailIdSchema.describe("ID of the email message containing the attachment"),
-  attachmentId: GmailIdSchema.describe("ID of the attachment to download"),
+  attachmentId: GmailAttachmentIdSchema.describe("ID of the attachment to download"),
   filename: z
     .string()
     .optional()
