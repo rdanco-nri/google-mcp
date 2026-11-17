@@ -107,6 +107,45 @@ export function extractAttachments(payload: GmailMessagePart): EmailAttachment[]
   return attachments;
 }
 
+/** Where an invite's iCalendar data sits in a message: inline, or behind an attachment ID. */
+export interface CalendarPart {
+  /** base64url body, when Gmail returned the part inline. */
+  data: string | null;
+  attachmentId: string | null;
+}
+
+/**
+ * Find the first iCalendar part of a message, depth-first. Google puts
+ * the invite in two places -- a `text/calendar; method=...` part inside
+ * the alternative body, then an `invite.ics` attachment -- and both hold
+ * the same text, so the first match is enough.
+ */
+export function findCalendarPart(payload: GmailMessagePart): CalendarPart | null {
+  function walk(part: GmailMessagePart, depth: number): CalendarPart | null {
+    if (depth > MAX_MIME_DEPTH) {
+      logDepthExceeded("findCalendarPart", depth);
+      return null;
+    }
+    const mime = (part.mimeType ?? "").toLowerCase();
+    const isCalendar =
+      mime === "text/calendar" ||
+      mime === "application/ics" ||
+      (part.filename ?? "").toLowerCase().endsWith(".ics");
+    if (isCalendar && (part.body?.data || part.body?.attachmentId)) {
+      return {
+        data: part.body?.data ?? null,
+        attachmentId: part.body?.attachmentId ?? null,
+      };
+    }
+    for (const sub of part.parts ?? []) {
+      const found = walk(sub, depth + 1);
+      if (found) return found;
+    }
+    return null;
+  }
+  return walk(payload, 0);
+}
+
 /**
  * Walk a message payload and collect attachment metadata into the
  * caller-supplied array. Used by `get_thread` and `list_inbox_threads`,

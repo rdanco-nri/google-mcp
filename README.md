@@ -17,9 +17,10 @@ Each family of tools appears only when your sign-in grants its scope.
 | Docs | `docs_create_release_doc`, `docs_write_tab`, `docs_read_tab` | `documents` |
 | Sheets | `sheets_write_tab` | `spreadsheets` |
 | Slides | `slides_create_deck_from_outline`, `slides_append_to_deck` | `presentations` |
-| Calendar | `calendar_list_events`, `calendar_find_free_slots` | `calendar.readonly` |
+| Calendar: read | `calendar_list_events`, `calendar_find_free_slots`, `calendar_read_invite_email` | `calendar.readonly` or `calendar.events` |
+| Calendar: write | `calendar_respond_to_event`, `calendar_update_event`, `calendar_create_event` | `calendar.events` |
 
-The server also sends Claude a short set of rules for building spreadsheets, which Claude Code loads at session start; they live in `src/server.ts`. Calendar is read-only. `drive_read_file` turns a Doc into markdown, a Sheet into CSV with every tab, and a deck into an outline. Permanent delete (`delete_email`, `batch_delete_emails`) needs the extra `mail.google.com` scope, which the setup below leaves out on purpose; `modify_email` can still move mail to Trash.
+The server also sends Claude a short set of rules for building spreadsheets, which Claude Code loads at session start; they live in `src/server.ts`. The calendar writes email guests by default, and update and create take `dryRun: true` to preview who would be emailed. Google keeps a guest's proposed new time out of the Calendar API and sends it only by email, so `calendar_read_invite_email` reads it from that email and names the occurrence to move. `drive_read_file` turns a Doc into markdown, a Sheet into CSV with every tab, and a deck into an outline. Permanent delete (`delete_email`, `batch_delete_emails`) needs the extra `mail.google.com` scope, which the setup below leaves out on purpose; `modify_email` can still move mail to Trash.
 
 ## Before you start
 
@@ -60,7 +61,7 @@ The build writes the server to `dist/index.js`. The clone can live anywhere; the
 From the `google-mcp` folder, run:
 
 ```bash
-npm run auth -- --scopes=gmail.modify,gmail.settings.basic,drive,spreadsheets,presentations,documents,calendar.readonly
+npm run auth -- --scopes=gmail.modify,gmail.settings.basic,drive,spreadsheets,presentations,documents,calendar.readonly,calendar.events
 ```
 
 A browser opens on Google's consent screen. Approve it, and the server saves your tokens to `~/.google-mcp/credentials.json`, readable only by you.
@@ -127,7 +128,7 @@ These settings change through environment variables. In Claude Code, pass each o
 | `GOOGLE_MCP_DRY_RUN=true` | Every write returns what it would have sent, without sending it |
 | `GOOGLE_MCP_AUDIT_LOG=/abs/path.jsonl` | Logs every tool call, with message content left out |
 | `GOOGLE_MCP_RECIPIENT_PAIRING=true` | Sends only to addresses on an allowlist kept by `pair_recipient` |
-| `GOOGLE_MCP_RATE_LIMIT_send=400/day,6000/month` | Changes one rate-limit cap; the other buckets are `delete`, `modify`, `drafts`, `labels`, `filters`, and `workspace_writes` |
+| `GOOGLE_MCP_RATE_LIMIT_send=400/day,6000/month` | Changes one rate-limit cap; the other buckets are `delete`, `modify`, `drafts`, `labels`, `filters`, `workspace_writes`, and `calendar_writes` |
 
 ## Troubleshooting
 

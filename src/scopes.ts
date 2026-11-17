@@ -43,7 +43,11 @@
 //     titles, or attendees. Strictly narrower than calendar.readonly
 //     and enough for calendar_find_free_slots, so a token can be
 //     granted just this for least-privilege availability lookups.
-// Both are read-only; nothing in this MCP writes to Calendar.
+//   - calendar.events: read and edit events on every calendar the
+//     account can see. Required by the three calendar write tools
+//     (RSVP, update, create). It is the narrowest scope that covers an
+//     RSVP on another organizer's invite; `calendar` would also grant
+//     calendar sharing, which nothing here needs.
 
 // Map shorthand scope names to full Google API URLs
 export const SCOPE_MAP: Record<string, string> = {
@@ -66,6 +70,7 @@ export const SCOPE_MAP: Record<string, string> = {
   // Calendar — added v0.35
   "calendar.readonly": "https://www.googleapis.com/auth/calendar.readonly",
   "calendar.freebusy": "https://www.googleapis.com/auth/calendar.freebusy",
+  "calendar.events": "https://www.googleapis.com/auth/calendar.events",
 };
 
 // Reverse map for converting full URLs back to shorthand

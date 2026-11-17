@@ -47,5 +47,5 @@ export function registerAllTools(server: McpServer, opts: RegisterAllToolsOpts):
   registerSlidesTools(server, opts.drive, opts.slides, opts.authorizedScopes);
   registerDocsTools(server, opts.docs, opts.drive, opts.authorizedScopes);
   registerSheetsTools(server, opts.sheets, opts.authorizedScopes);
-  registerCalendarTools(server, opts.calendar, opts.authorizedScopes);
+  registerCalendarTools(server, opts.calendar, opts.gmail, opts.authorizedScopes);
 }

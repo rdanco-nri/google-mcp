@@ -423,33 +423,29 @@ export const GetInboxWithThreadsSchema = z
     path: ["maxResults"],
   });
 
+// One RFC 5322 mailbox, checked with the same parser send/reply/draft
+// use. `parseOneAddress` also accepts a group (`"team: a@b, c@d;"`),
+// which is not a single mailbox: accepting one would let `team: ...;`
+// past the pairing allowlist while none of its members had been
+// approved, so only `type === "mailbox"` passes.
+const MailboxSchema = z
+  .string()
+  .max(512)
+  .refine((addr) => {
+    const parsed = emailAddresses.parseOneAddress(addr);
+    return parsed !== null && parsed.type === "mailbox";
+  }, "Must be a parseable RFC 5322 mailbox address (e.g. user@example.com — RFC 5322 groups are rejected).");
+
 // Recipient pairing gate schema — opt-in allowlist ops (add/remove/list).
-// Gate itself is enforced in handleEmailAction + reply_all when
-// GOOGLE_MCP_RECIPIENT_PAIRING=true. See src/recipient-pairing.ts.
-//
-// `email` is shape-checked at the schema layer with the same RFC 5322
-// parser (`email-addresses.parseOneAddress`) used by send/reply/draft —
-// so a malformed address is rejected pre-dispatch instead of bubbling
-// out of `addPairedAddress` at runtime, and the agent sees a Zod
-// validation error rather than a generic Error.
+// The gate itself is enforced wherever mail or invites leave the account
+// when GOOGLE_MCP_RECIPIENT_PAIRING=true. See src/recipient-pairing.ts.
 export const PairRecipientSchema = z.object({
   action: z
     .enum(["add", "remove", "list"])
     .describe("Operation on the paired-recipients allowlist"),
-  email: z
-    .string()
-    .max(512)
-    .refine((addr) => {
-      // `parseOneAddress` may return a `group` node (RFC 5322 syntax
-      // `"team: a@b, c@d;"`) — a group parses fine but is NOT a single
-      // mailbox. Accepting one here would let `team: …;` past the
-      // pairing allowlist while none of the contained mailboxes have
-      // been individually approved. Restrict to `type === "mailbox"`.
-      const parsed = emailAddresses.parseOneAddress(addr);
-      return parsed !== null && parsed.type === "mailbox";
-    }, "Must be a parseable RFC 5322 mailbox address (e.g. user@example.com — RFC 5322 groups are rejected).")
-    .optional()
-    .describe("Email address to add or remove. Required when action is add or remove."),
+  email: MailboxSchema.optional().describe(
+    "Email address to add or remove. Required when action is add or remove.",
+  ),
 });
 
 // Drafts CRUD — extends `draft_email` (create) with the rest of the
@@ -1084,6 +1080,121 @@ export const CalendarFindFreeSlotsSchema = z.object({
     .max(100)
     .default(20)
     .describe("Cap on returned slots, earliest first (default 20)."),
+});
+
+// Calendar writes and the invite reader (v0.36).
+//
+// Event IDs are base32hex for a series and `<seriesId>_<YYYYMMDDTHHMMSSZ>`
+// for one occurrence of it; some imported events also carry other
+// alphanumerics, so the charset is the union.
+const CalendarEventIdSchema = z
+  .string()
+  .min(5)
+  .max(1024)
+  .regex(/^[A-Za-z0-9_]+$/, "Must be a Calendar event ID (letters, digits, underscore).");
+
+const EVENT_TIME_HELP =
+  "A bare date (2026-11-18) is an all-day event. A time with an offset (2026-11-18T16:00:00-05:00) is used as given. A time without one (2026-11-18T16:00:00) is read as wall-clock time in `timeZone`, which is then required.";
+
+const notifySchema = (who: string) =>
+  z.boolean().default(true).describe(`Email ${who} about this change (default true).`);
+
+const dryRunSchema = z
+  .boolean()
+  .default(false)
+  .describe(
+    "If true, return what would change and who would be emailed, without writing. Independent of the global GOOGLE_MCP_DRY_RUN, which echoes the call's arguments with guest lists elided.",
+  );
+
+const calendarIdForWrite = CalendarIdSchema.default("primary").describe(
+  "Calendar holding the event: 'primary' (the default) or a calendar ID this account can edit.",
+);
+
+export const CalendarRespondToEventSchema = z.object({
+  eventId: CalendarEventIdSchema.describe(
+    "Event to answer. An occurrence ID (`<seriesId>_<YYYYMMDDTHHMMSSZ>`, as `calendar_list_events` and `calendar_read_invite_email` return) answers that occurrence only; a series ID answers every occurrence.",
+  ),
+  response: z
+    .enum(["accepted", "declined", "tentative"])
+    .describe("The account's reply to the invite."),
+  note: z
+    .string()
+    .max(1000)
+    .optional()
+    .describe(
+      "Optional note shown to the organizer with the reply. Leaving it out keeps any note already on the reply.",
+    ),
+  notify: z
+    .boolean()
+    .default(true)
+    .describe(
+      "Email the organizer the reply (default true). With false, an organizer outside Google Calendar never learns of it.",
+    ),
+  calendarId: calendarIdForWrite,
+});
+
+export const CalendarUpdateEventSchema = z.object({
+  eventId: CalendarEventIdSchema.describe(
+    "Event to change. Pass an occurrence ID (`<seriesId>_<YYYYMMDDTHHMMSSZ>`, as `calendar_list_events` and `calendar_read_invite_email` return) to change that one occurrence and leave the series alone.",
+  ),
+  start: Rfc3339OrDateSchema.optional().describe(
+    `New start. ${EVENT_TIME_HELP} Given alone, the event keeps its length.`,
+  ),
+  end: Rfc3339OrDateSchema.optional().describe(`New end. ${EVENT_TIME_HELP}`),
+  timeZone: TimeZoneSchema.optional().describe(
+    "IANA zone for a `start`/`end` given without an offset, and for the times echoed back. Defaults to the event's own zone.",
+  ),
+  title: z.string().min(1).max(1024).optional().describe("New event title."),
+  addAttendees: coerceArray(MailboxSchema, { max: 100 })
+    .optional()
+    .describe("Guests to add. Everyone already invited stays, with their replies."),
+  removeAttendees: coerceArray(MailboxSchema, { max: 100 })
+    .optional()
+    .describe("Guests to remove. Each must be on the event."),
+  notify: notifySchema("every guest"),
+  dryRun: dryRunSchema,
+  applyToSeries: z
+    .boolean()
+    .default(false)
+    .describe(
+      "Required to change a whole recurring series through its series ID. Without it, a series ID is refused so one wrong ID can't move every future meeting.",
+    ),
+  calendarId: calendarIdForWrite,
+});
+
+export const CalendarCreateEventSchema = z.object({
+  title: z.string().min(1).max(1024).describe("Event title."),
+  start: Rfc3339OrDateSchema.describe(`Start. ${EVENT_TIME_HELP}`),
+  end: Rfc3339OrDateSchema.describe(
+    `End, after start. ${EVENT_TIME_HELP} For an all-day event the end date is exclusive: a one-day event on 2026-11-18 ends 2026-11-19.`,
+  ),
+  timeZone: TimeZoneSchema.optional().describe(
+    "IANA zone for a `start`/`end` given without an offset, and for the times echoed back. Defaults to the calendar's own zone.",
+  ),
+  attendees: coerceArray(MailboxSchema, { max: 100 })
+    .optional()
+    .describe("Guests to invite. The account itself is the organizer and needs no entry."),
+  location: z
+    .string()
+    .max(1024)
+    .optional()
+    .describe("Where the event is: a room, an address, or a Zoom or other meeting link."),
+  addMeet: z.boolean().default(false).describe("Attach a new Google Meet link (default false)."),
+  notify: notifySchema("every guest an invite"),
+  dryRun: dryRunSchema,
+  calendarId: calendarIdForWrite,
+});
+
+export const CalendarReadInviteEmailSchema = z.object({
+  messageId: GmailIdSchema.describe(
+    'Gmail message holding the invite, update, cancellation, or proposed new time (from `search_emails`, e.g. `subject:"Proposed new time"`).',
+  ),
+  calendarId: CalendarIdSchema.default("primary").describe(
+    "Calendar to look the event up on: 'primary' (the default) or another calendar this account can read.",
+  ),
+  timeZone: TimeZoneSchema.optional().describe(
+    "IANA zone for the human-readable times in the response. Defaults to the event's own zone.",
+  ),
 });
 
 // Tool definition type
@@ -1873,10 +1984,10 @@ export const toolDefinitions: ToolDefinition[] = [
       "",
       "DO NOT USE: to find an open time (use `calendar_find_free_slots`, which intersects multiple calendars and subtracts busy blocks). Reading a coworker's event TITLES needs full read access to their calendar, which is rarer than free/busy sharing — if this returns 404/403 for them, their availability is still reachable via `calendar_find_free_slots`.",
       "",
-      "SIDE EFFECTS: none — read-only. Requires the `calendar.readonly` scope. Cancelled events are omitted.",
+      "SIDE EFFECTS: none — read-only. Requires `calendar.readonly` or `calendar.events`. Cancelled events are omitted. Each recurring occurrence comes back with its own occurrence ID and a `recurringEventId`.",
     ].join("\n"),
     schema: CalendarListEventsSchema,
-    scopes: ["calendar.readonly"],
+    scopes: ["calendar.readonly", "calendar.events"],
     annotations: { title: "Calendar: List Events", readOnlyHint: true, destructiveHint: false },
   },
   {
@@ -1895,6 +2006,95 @@ export const toolDefinitions: ToolDefinition[] = [
     schema: CalendarFindFreeSlotsSchema,
     scopes: ["calendar.freebusy", "calendar.readonly"],
     annotations: { title: "Calendar: Find Free Slots", readOnlyHint: true, destructiveHint: false },
+  },
+
+  // =====================================================================
+  // Calendar writes and the invite reader (v0.36). The writes need
+  // `calendar.events`; the reader also takes `calendar.readonly`.
+  // =====================================================================
+  {
+    name: "calendar_respond_to_event",
+    description: [
+      "Set the account's RSVP on an event it was invited to: accepted, declined, or tentative, with an optional note to the organizer. **The organizer is emailed the reply unless `notify` is false.**",
+      "",
+      "USE WHEN: the user has said how to answer an invite -- including one that arrived by email (find its event ID with `calendar_read_invite_email`). ALWAYS confirm the answer, and any note, with the user before calling.",
+      "",
+      "DO NOT USE: on an event the account organizes (there is nothing to RSVP), or to move a meeting (use `calendar_update_event`). An occurrence ID answers only that occurrence; a series ID answers every one.",
+      "",
+      "SIDE EFFECTS: changes only the account's own reply -- no other guest's entry is sent, so nobody else's reply can be overwritten. The organizer is emailed the reply and the note. Calling again with the same answer and note changes nothing and emails no one. Audit log entry on the MCP host.",
+    ].join("\n"),
+    schema: CalendarRespondToEventSchema,
+    scopes: ["calendar.events"],
+    annotations: {
+      title: "Calendar: Respond To Event",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  {
+    name: "calendar_update_event",
+    description: [
+      "Change the time, title, or guests of an event the account organizes. Takes one occurrence of a recurring series without touching the rest. **Every guest is emailed the change unless `notify` is false.**",
+      "",
+      "USE WHEN: the user has asked to move, retitle, or change the guests of a meeting they organize -- including accepting a proposed new time read with `calendar_read_invite_email`. ALWAYS confirm the new time, title, and who will be emailed with the user before calling; `dryRun: true` returns exactly that without writing. Put every change in one call: each call emails every guest.",
+      "",
+      "DO NOT USE: on an event someone else organizes (RSVP with `calendar_respond_to_event`, or ask the organizer). To change a whole series, pass the series ID with `applyToSeries: true`; occurrence IDs come from `calendar_list_events`. To add or drop guests, pass `addAttendees` / `removeAttendees` -- everyone else stays, with their replies. When `GOOGLE_MCP_RECIPIENT_PAIRING` is enabled, an added guest who has not been paired is rejected -- pair the address first via `pair_recipient`.",
+      "",
+      "SIDE EFFECTS: rewrites the event on every guest's calendar. With `notify` on, Google emails every guest; removed guests get a cancellation. Audit log entry on the MCP host.",
+    ].join("\n"),
+    schema: CalendarUpdateEventSchema,
+    scopes: ["calendar.events"],
+    annotations: {
+      title: "Calendar: Update Event",
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+  },
+  {
+    name: "calendar_create_event",
+    description: [
+      "Create an event on the account's calendar, optionally with guests, a location or meeting link, and a new Google Meet link. **Every guest is emailed an invite unless `notify` is false.**",
+      "",
+      "USE WHEN: the user has asked to book a meeting or hold time. ALWAYS confirm the title, time, guests, and whether invites go out with the user before calling; `dryRun: true` returns exactly that without writing.",
+      "",
+      "DO NOT USE: to change an existing event (use `calendar_update_event`) or to find an open time first (use `calendar_find_free_slots`). When `GOOGLE_MCP_RECIPIENT_PAIRING` is enabled, a guest who has not been paired is rejected -- pair the address first via `pair_recipient`.",
+      "",
+      "SIDE EFFECTS: adds the event to the account's calendar and, with `notify` on, emails each guest an invite. Safe to retry: the event ID is derived from the request, so an identical second call returns the first event (`alreadyExisted: true`) instead of booking twice. There is no delete tool; the user removes an event in Google Calendar. Audit log entry on the MCP host.",
+    ].join("\n"),
+    schema: CalendarCreateEventSchema,
+    scopes: ["calendar.events"],
+    annotations: {
+      title: "Calendar: Create Event",
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
+  },
+  {
+    name: "calendar_read_invite_email",
+    description: [
+      "Read the calendar data in an invite email -- a new invite, an update, a cancellation, or a guest's proposed new time -- and find the event it names on the calendar. The Calendar API has no field for proposed times; they exist only in these emails.",
+      "",
+      "USE WHEN: an email says someone proposed a new time, or an invite arrived by email (including one in spam) and the user wants to answer it. Returns the method (`COUNTER` for a proposed time, `REQUEST` for an invite, `CANCEL`), the proposed or offered times, the occurrence ID to act on, and the event's current title and time. To accept a proposed time, call `calendar_update_event` on the returned `eventId` with the proposed start and end. To answer an invite, call `calendar_respond_to_event`.",
+      "",
+      "DO NOT USE: to read the email's text (use `read_email`). Check `warnings` before acting: a sender who is not on the event, or an email link that does not match the invite, means the email may be forged -- tell the user instead of changing the calendar.",
+      "",
+      "SIDE EFFECTS: none — read-only. Needs `calendar.readonly` or `calendar.events` for the event lookup, and a Gmail read scope for the message. Free text from the invite (its title, description, and comments) is never returned.",
+    ].join("\n"),
+    schema: CalendarReadInviteEmailSchema,
+    scopes: ["calendar.readonly", "calendar.events"],
+    annotations: {
+      title: "Calendar: Read Invite Email",
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
 
   // Forward operation

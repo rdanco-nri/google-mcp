@@ -18,6 +18,7 @@ import {
   collectAttachmentsForThread,
   extractAttachments,
   extractEmailContent,
+  findCalendarPart,
 } from "./mime-walkers.js";
 
 type GmailMessagePart = gmail_v1_types.Schema$MessagePart;
@@ -167,5 +168,54 @@ describe("collectAttachmentsForThread depth cap", () => {
     expect(() =>
       collectAttachmentsForThread(tree, "list_inbox_threads.processAttachmentParts"),
     ).not.toThrow();
+  });
+});
+
+describe("findCalendarPart", () => {
+  // Google's invite layout: mixed[ alternative[ plain, html, calendar ], application/ics ].
+  const invite = (calendar: GmailMessagePart): GmailMessagePart => ({
+    mimeType: "multipart/mixed",
+    parts: [
+      {
+        mimeType: "multipart/alternative",
+        parts: [
+          { mimeType: "text/plain", body: { data: "cGxhaW4" } },
+          { mimeType: "text/html", body: { data: "aHRtbA" } },
+          calendar,
+        ],
+      },
+      {
+        mimeType: "application/ics",
+        filename: "invite.ics",
+        body: { attachmentId: "att-ics", size: 2596 },
+      },
+    ],
+  });
+
+  it("returns the inline text/calendar part first", () => {
+    const found = findCalendarPart(
+      invite({ mimeType: "text/calendar", body: { data: "QkVHSU4" } }),
+    );
+    expect(found).toEqual({ data: "QkVHSU4", attachmentId: null });
+  });
+
+  it("returns an attachment ID when Gmail holds the calendar part back", () => {
+    const found = findCalendarPart(
+      invite({ mimeType: "text/calendar", body: { attachmentId: "att-cal", size: 2596 } }),
+    );
+    expect(found).toEqual({ data: null, attachmentId: "att-cal" });
+  });
+
+  it("falls through to an .ics attachment when there is no text/calendar part", () => {
+    const found = findCalendarPart(invite({ mimeType: "text/plain", body: { data: "eA" } }));
+    expect(found?.attachmentId).toBe("att-ics");
+  });
+
+  it("returns null for a message with no calendar data", () => {
+    expect(findCalendarPart({ mimeType: "text/plain", body: { data: "eA" } })).toBeNull();
+  });
+
+  it("survives an extremely deep tree (no stack overflow)", () => {
+    expect(() => findCalendarPart(buildLinearTree(5_000))).not.toThrow();
   });
 });
