@@ -149,6 +149,16 @@ export function tzOffsetMs(instant: Date, timeZone: string): number {
   return asUtc - instant.getTime();
 }
 
+/** An instant as local ISO time with the zone's offset: `2026-11-20T07:30:00-05:00`. */
+export function zonedIso(ms: number, timeZone: string): string {
+  const off = tzOffsetMs(new Date(ms), timeZone);
+  const local = new Date(ms + off).toISOString().slice(0, 19);
+  const mins = Math.round(Math.abs(off) / 60000);
+  const hh = String(Math.floor(mins / 60)).padStart(2, "0");
+  const mm = String(mins % 60).padStart(2, "0");
+  return `${local}${off < 0 ? "-" : "+"}${hh}:${mm}`;
+}
+
 /**
  * Invert `wallPartsInZone`: given a wall-clock time in a zone, return
  * the absolute instant. Two passes because the offset depends on the
@@ -431,9 +441,9 @@ interface ResolvedTime {
 }
 
 /**
- * Resolve a start/end argument. Timed values go to the API as a UTC
- * instant plus the zone, so the stored time never depends on how the
- * caller wrote the offset.
+ * Resolve a start/end argument. With a zone, timed values go to the API
+ * as local time in that zone; without one, as the caller wrote them.
+ * Either way a dry-run preview reads in the caller's time, not UTC.
  */
 export function resolveEventTime(value: string, zone: string | undefined): ResolvedTime {
   if (DATE_ONLY.test(value)) {
@@ -442,6 +452,7 @@ export function resolveEventTime(value: string, zone: string | undefined): Resol
   let ms: number;
   if (HAS_OFFSET.test(value)) {
     ms = Date.parse(value);
+    if (!zone) return { edt: { dateTime: value }, ms, allDay: false };
   } else {
     if (!zone)
       throw new CalendarInputError(
@@ -456,11 +467,12 @@ export function resolveEventTime(value: string, zone: string | undefined): Resol
   return timeFromMs(ms, false, zone);
 }
 
-/** An instant as an event time: a date when `allDay`, else UTC plus the zone. */
+/** An instant as an event time: a date when `allDay`, else local time in the zone. */
 function timeFromMs(ms: number, allDay: boolean, zone: string | undefined): ResolvedTime {
   const iso = new Date(ms).toISOString();
   if (allDay) return { edt: { date: iso.slice(0, 10) }, ms, allDay };
-  return { edt: zone ? { dateTime: iso, timeZone: zone } : { dateTime: iso }, ms, allDay };
+  if (!zone) return { edt: { dateTime: iso }, ms, allDay };
+  return { edt: { dateTime: zonedIso(ms, zone), timeZone: zone }, ms, allDay };
 }
 
 /** The checks every start/end pair passes before it is sent. */
