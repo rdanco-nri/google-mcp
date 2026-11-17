@@ -45,6 +45,8 @@ const TOOL_BUCKET: Record<string, string> = {
   // Outbound mail (irreversible, spammable → the primary risk we cap)
   send_email: "send",
   reply_all: "send",
+  reply_to_email: "send",
+  forward_email: "send",
 
   // Deletion (irreversible; Gmail trashes first but batch deletes bypass trash)
   delete_email: "delete",
@@ -88,7 +90,20 @@ const TOOL_BUCKET: Record<string, string> = {
   // Sheets write (v0.33) — full-tab overwrite, same bucket as the
   // other workspace mutations above.
   sheets_write_tab: "workspace_writes",
+
+  // Calendar writes. Each one can email every guest on the event, so
+  // they get their own cap rather than sharing the document-edit bucket.
+  calendar_respond_to_event: "calendar_writes",
+  calendar_update_event: "calendar_writes",
+  calendar_create_event: "calendar_writes",
 };
+
+/**
+ * Every tool that changes state outside this process. The dry-run gate
+ * in `middleware.ts` reads this set, so a write tool needs exactly one
+ * entry, here, to get both dry-run and rate-limit coverage.
+ */
+export const WRITE_TOOLS: ReadonlySet<string> = new Set(Object.keys(TOOL_BUCKET));
 
 interface BucketLimit {
   daily: number;
@@ -128,6 +143,8 @@ const DEFAULT_BUCKET_LIMITS: Record<string, BucketLimit> = {
   // Sized for a busy review day (replying to many comments) plus
   // active deck drafting; well below upstream Drive/Slides quotas.
   workspace_writes: { daily: 100, monthly: 1500 },
+  // Sized for a heavy scheduling day; each call can email a whole guest list.
+  calendar_writes: { daily: 50, monthly: 500 },
 };
 
 function parseOverride(raw: string): BucketLimit | null {

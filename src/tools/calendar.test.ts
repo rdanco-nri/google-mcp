@@ -13,6 +13,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../server.js";
+import { apiError } from "../test-fixtures/google.js";
 import {
   mergeIntervals,
   subtractIntervals,
@@ -270,12 +271,6 @@ function mockCalendar(data: MockData) {
     },
   };
   return { calls, client };
-}
-
-function apiError(code: number, message: string): Error {
-  const err = new Error(message) as Error & { code: number };
-  err.code = code;
-  return err;
 }
 
 async function connect(scopes: string[], data: MockData = {}) {

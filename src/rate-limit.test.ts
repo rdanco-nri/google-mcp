@@ -7,8 +7,10 @@ import {
   enforceRateLimit,
   formatRateLimitError,
   resetRateLimitHistory,
+  WRITE_TOOLS,
   _TOOL_BUCKET,
 } from "./rate-limit.js";
+import { toolDefinitions } from "./tools.js";
 
 describe("rate-limit", () => {
   let stateDir: string;
@@ -46,6 +48,25 @@ describe("rate-limit", () => {
   it("maps send-family tools to the 'send' bucket", () => {
     expect(_TOOL_BUCKET.send_email).toBe("send");
     expect(_TOOL_BUCKET.reply_all).toBe("send");
+    expect(_TOOL_BUCKET.reply_to_email).toBe("send");
+    expect(_TOOL_BUCKET.forward_email).toBe("send");
+  });
+
+  it("maps the calendar writes to 'calendar_writes'", () => {
+    expect(_TOOL_BUCKET.calendar_respond_to_event).toBe("calendar_writes");
+    expect(_TOOL_BUCKET.calendar_update_event).toBe("calendar_writes");
+    expect(_TOOL_BUCKET.calendar_create_event).toBe("calendar_writes");
+    expect(_TOOL_BUCKET.calendar_read_invite_email).toBeUndefined();
+  });
+
+  it("covers every tool not marked read-only, so each write gets dry-run and a rate limit", () => {
+    // pair_recipient edits only the local allowlist file.
+    const exempt = new Set(["pair_recipient"]);
+    const uncovered = toolDefinitions
+      .filter((d) => d.annotations.readOnlyHint !== true && !exempt.has(d.name))
+      .map((d) => d.name)
+      .filter((name) => !WRITE_TOOLS.has(name));
+    expect(uncovered).toEqual([]);
   });
 
   it("maps destructive tools to 'delete'", () => {
