@@ -18,6 +18,7 @@ import {
   mergeIntervals,
   subtractIntervals,
   zonedWallTimeToUtc,
+  zonedIso,
   wallPartsInZone,
   computeFreeSlots,
   formatSlotLabel,
@@ -54,6 +55,22 @@ describe("zonedWallTimeToUtc", () => {
     expect(zonedWallTimeToUtc(2026, 7, 32, 0, 0, LA).toISOString()).toBe(
       "2026-08-01T07:00:00.000Z",
     );
+  });
+});
+
+describe("zonedIso", () => {
+  it("renders local time with the offset on each side of a DST change", () => {
+    expect(zonedIso(ms("2026-11-20T15:00:00Z"), "America/New_York")).toBe(
+      "2026-11-20T10:00:00-05:00",
+    );
+    expect(zonedIso(ms("2026-07-01T15:00:00Z"), "America/New_York")).toBe(
+      "2026-07-01T11:00:00-04:00",
+    );
+  });
+
+  it("handles zones east of UTC and half-hour offsets", () => {
+    expect(zonedIso(ms("2026-11-20T15:00:00Z"), "Asia/Kolkata")).toBe("2026-11-20T20:30:00+05:30");
+    expect(zonedIso(ms("2026-11-20T15:00:00Z"), "UTC")).toBe("2026-11-20T15:00:00+00:00");
   });
 });
 

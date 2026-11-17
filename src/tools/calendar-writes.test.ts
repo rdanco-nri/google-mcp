@@ -302,8 +302,8 @@ describe("calendar_update_event", () => {
     expect(params.eventId).toBe(OCCURRENCE_ID);
     expect(params.sendUpdates).toBe("all");
     expect(params.requestBody).toEqual({
-      start: { dateTime: "2026-11-18T21:00:00.000Z", timeZone: NY },
-      end: { dateTime: "2026-11-18T21:30:00.000Z", timeZone: NY },
+      start: { dateTime: "2026-11-18T16:00:00-05:00", timeZone: NY },
+      end: { dateTime: "2026-11-18T16:30:00-05:00", timeZone: NY },
     });
     // No guest change, so no ETag guard: an unrelated reply must not fail the move.
     expect(options).toBeUndefined();
@@ -407,6 +407,10 @@ describe("calendar_update_event", () => {
     expect(fix.of("patch")).toHaveLength(0);
     expect(res.text).toContain("DRY RUN");
     expect(res.text).toContain("Wed Nov 18, 4:00 PM - 4:30 PM EST");
+    expect(res.structuredContent?.after).toMatchObject({
+      start: "2026-11-18T16:00:00-05:00",
+      end: "2026-11-18T16:30:00-05:00",
+    });
     expect(res.structuredContent?.notified).toEqual([GUEST]);
     await fix.close();
   });
@@ -473,8 +477,8 @@ describe("calendar_create_event", () => {
     expect(params.conferenceDataVersion).toBe(0);
     expect(params.requestBody).toMatchObject({
       summary: "Planning",
-      start: { dateTime: "2026-11-20T15:00:00.000Z", timeZone: NY },
-      end: { dateTime: "2026-11-20T15:30:00.000Z", timeZone: NY },
+      start: { dateTime: "2026-11-20T10:00:00-05:00", timeZone: NY },
+      end: { dateTime: "2026-11-20T10:30:00-05:00", timeZone: NY },
       attendees: [{ email: GUEST }],
     });
     expect(params.requestBody?.id).toMatch(/^[0-9a-v]{40}$/);
@@ -541,12 +545,29 @@ describe("calendar_create_event", () => {
     const fix = await connect({});
     const preview = await fix.call("calendar_create_event", { ...base, dryRun: true });
     expect(preview.text).toContain("DRY RUN");
+    expect(preview.structuredContent?.event).toMatchObject({ start: "2026-11-20T10:00:00-05:00" });
     expect(preview.structuredContent?.notified).toEqual([GUEST]);
     process.env.GOOGLE_MCP_RECIPIENT_PAIRING = "true";
     const held = await fix.call("calendar_create_event", base);
     expect(held.isError).toBe(true);
     expect(held.text).toContain(GUEST);
     expect(fix.of("insert")).toHaveLength(0);
+    await fix.close();
+  });
+
+  it("keeps the caller's offset when no timeZone is given", async () => {
+    const fix = await connect({});
+    const { timeZone: _, ...noZone } = base;
+    const res = await fix.call("calendar_create_event", {
+      ...noZone,
+      start: "2026-11-20T10:00:00-05:00",
+      end: "2026-11-20T10:30:00-05:00",
+      dryRun: true,
+    });
+    expect(res.structuredContent?.event).toMatchObject({
+      start: "2026-11-20T10:00:00-05:00",
+      end: "2026-11-20T10:30:00-05:00",
+    });
     await fix.close();
   });
 
