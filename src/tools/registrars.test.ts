@@ -2466,6 +2466,11 @@ describe("PR #7 registrars — reply_to_email (sender-only)", () => {
 });
 
 describe("PR #7 registrars — forward_email", () => {
+  // Long enough that `pickBody` reads it as the message, not a stub.
+  const PLAIN_VERSION =
+    "The plain version of the quarterly update, written out in full so that a reader " +
+    "without an HTML client still gets every figure and every date in the message.";
+
   it("fetches the source, builds Fwd: subject + quoted body, and sends to the new recipients", async () => {
     await withFix(["gmail.send", "gmail.readonly"], async (fix) => {
       const result = (await fix.client.callTool({
@@ -2565,22 +2570,109 @@ describe("PR #7 registrars — forward_email", () => {
             body: "FYI — see below.",
           },
         })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
-
-        // Either outcome is sound: the forward carries the source's
-        // link, or the tool refuses and sends nothing.
-        if (result.isError) {
-          expect(fix.calls.messageSend).toHaveLength(0);
-          return;
-        }
+        expect(result.isError).toBeFalsy();
+        expect(result.content[0]?.text).not.toContain("quoted block is empty");
         expect(fix.calls.messageSend).toHaveLength(1);
         const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
-        const decoded = Buffer.from(sent.requestBody.raw, "base64url").toString("utf-8");
-        expect(decoded).toContain(link);
+        const parts = decodeRawParts(sent.requestBody.raw);
+
+        // The HTML part carries the source as it was, under the
+        // escaped preface and attribution lines.
+        expect(parts.html).toContain(`<a href="${link}">View Open Info Request</a>`);
+        expect(parts.html).toContain("<p>FYI — see below.</p>");
+        expect(parts.html).toContain("From: Alice &lt;alice@example.com&gt;");
+
+        // The plain-text part is the same message for a reader
+        // without HTML: preface, attribution, and the link's address.
+        expect(parts.text).toContain("FYI — see below.");
+        expect(parts.text).toContain("---------- Forwarded message ---------");
+        expect(parts.text).toContain(`View Open Info Request <${link}>`);
       },
       {
         messageBodyText: "",
         messageBodyHtml: `<p>More information required.</p><a href="${link}">View Open Info Request</a>`,
       },
+    );
+  });
+
+  it("quotes the HTML of a source that has both parts, and its own text in the plain part", async () => {
+    await withFix(
+      ["gmail.send", "gmail.readonly"],
+      async (fix) => {
+        const result = (await fix.client.callTool({
+          name: "forward_email",
+          arguments: { messageId: "msg_both_parts", to: ["carol@example.com"] },
+        })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(result.isError).toBeFalsy();
+        const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
+        const parts = decodeRawParts(sent.requestBody.raw);
+        expect(parts.html).toContain(
+          "<p>The <b>formatted</b> version of the quarterly update.</p>",
+        );
+        expect(parts.text).toContain(PLAIN_VERSION);
+        expect(parts.text).not.toContain("formatted");
+      },
+      {
+        messageBodyText: PLAIN_VERSION,
+        messageBodyHtml: "<p>The <b>formatted</b> version of the quarterly update.</p>",
+      },
+    );
+  });
+
+  it("refuses a source whose HTML shows a reader nothing, and sends nothing", async () => {
+    await withFix(
+      ["gmail.send", "gmail.readonly"],
+      async (fix) => {
+        const result = (await fix.client.callTool({
+          name: "forward_email",
+          arguments: {
+            messageId: "msg_style_only",
+            to: ["carol@example.com"],
+            body: "FYI — see below.",
+          },
+        })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(result.isError).toBe(true);
+        expect(result.content[0]?.text).toContain(
+          "Forward not sent: the source message has no text or HTML body to quote.",
+        );
+        expect(result.content[0]?.text).toContain("download_attachment");
+        expect(fix.calls.messageSend).toHaveLength(0);
+      },
+      {
+        messageBodyText: "",
+        messageBodyHtml: "<style>p { margin: 0 !important; }</style><div> &nbsp; </div>",
+      },
+    );
+  });
+
+  it("sends a bodiless source when the caller passes attachments, and says the quote is empty", async () => {
+    await withFix(
+      ["gmail.send", "gmail.readonly"],
+      async (fix) => {
+        const pdfPath = join(attachmentDir, "carried-over.pdf");
+        writeFileSync(pdfPath, "%PDF-1.4\n%fake pdf payload for the test\n");
+
+        const result = (await fix.client.callTool({
+          name: "forward_email",
+          arguments: {
+            messageId: "msg_attachment_only",
+            to: ["carol@example.com"],
+            attachments: [pdfPath],
+          },
+        })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(result.isError).toBeFalsy();
+        expect(result.content[0]?.text).toContain("Forward sent successfully");
+        expect(result.content[0]?.text).toContain(
+          "Note: the source message has no body, so the quoted block is empty.",
+        );
+        expect(fix.calls.messageSend).toHaveLength(1);
+        const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
+        const parts = decodeRawParts(sent.requestBody.raw);
+        expect(parts.text).toContain("---------- Forwarded message ---------");
+        expect(parts.html).toBeUndefined();
+        expect(parts.message).toContain("carried-over.pdf");
+      },
+      { messageBodyText: "" },
     );
   });
 });

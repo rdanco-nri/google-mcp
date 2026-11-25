@@ -31,11 +31,14 @@ import {
   addFwdPrefix,
   addRePrefix,
   buildForwardQuotedBody,
+  buildForwardQuotedHtml,
   buildReferencesHeader,
   buildReplyAllRecipients,
   parseEmailAddresses,
 } from "../reply-all-helpers.js";
 import { extractEmailContent } from "../mime-walkers.js";
+import { htmlToText } from "../html-to-text.js";
+import { pickBody } from "../utl.js";
 
 export function registerMessagingTools(
   server: McpServer,
@@ -315,10 +318,13 @@ export function registerMessagingTools(
   // forward_email — relay an existing message to a new recipient
   // list. Builds a Gmail-style quoted body (`---------- Forwarded
   // message ---------` separator + From/Date/Subject/To headers +
-  // original text) and prepends the optional `body` preface. New
-  // thread (no threadId carry-over). Attachments from the source
-  // are NOT re-attached — the caller chains download_attachment +
-  // passes paths via `attachments` if carry-over is wanted.
+  // the source's body) and prepends the optional `body` preface. A
+  // source with an HTML part is quoted as HTML, with a plain-text
+  // alternative; a source with nothing to quote is refused unless the
+  // caller passes attachments. New thread (no threadId carry-over).
+  // Attachments from the source are NOT re-attached — the caller
+  // chains download_attachment + passes paths via `attachments` if
+  // carry-over is wanted.
   const forwardEmail = pull("forward_email");
   defineTool(
     server,
@@ -338,29 +344,43 @@ export function registerMessagingTools(
       const originalSubject = get("subject");
       const originalTo = get("to");
 
-      const emailContent = extractEmailContent(originalEmail.data.payload || {});
-      const originalText = emailContent.text || "";
+      const { text, html } = extractEmailContent(originalEmail.data.payload || {});
 
+      // The HTML read as text decides two things: whether the HTML shows
+      // a reader anything, and what the plain-text part quotes when the
+      // source's own text part is missing or a stub.
+      const htmlAsText = html ? htmlToText(html) : "";
+      const quotedText = pickBody(text, html).source === "text" ? text : htmlAsText;
+      const quoteIsEmpty = quotedText.trim() === "";
+      const hasAttachments = (args.attachments?.length ?? 0) > 0;
+
+      if (quoteIsEmpty && !hasAttachments) {
+        throw new Error(
+          "Forward not sent: the source message has no text or HTML body to quote. " +
+            "forward_email does not carry the source's attachments; download them " +
+            "with download_attachment and pass their paths in attachments.",
+        );
+      }
+
+      const originalHeaders = {
+        from: originalFrom,
+        date: originalDate,
+        subject: originalSubject,
+        to: originalTo,
+      };
       const forwardSubject = addFwdPrefix(originalSubject);
-      const forwardBody = buildForwardQuotedBody(
-        {
-          from: originalFrom,
-          date: originalDate,
-          subject: originalSubject,
-          to: originalTo,
-        },
-        originalText,
-        args.body,
-      );
-
       const emailArgs: EmailSendArgs = {
         to: args.to,
         cc: args.cc,
         bcc: args.bcc,
         subject: forwardSubject,
-        body: forwardBody,
+        body: buildForwardQuotedBody(originalHeaders, quotedText, args.body),
         attachments: args.attachments,
       };
+      if (htmlAsText !== "") {
+        emailArgs.htmlBody = buildForwardQuotedHtml(originalHeaders, html, args.body);
+        emailArgs.mimeType = "multipart/alternative";
+      }
 
       await sendOrDraftEmail(gmail, "send", emailArgs);
 
@@ -372,7 +392,11 @@ export function registerMessagingTools(
               args.cc && args.cc.length > 0 ? `\nCC: ${args.cc.join(", ")}` : ""
             }${
               args.bcc && args.bcc.length > 0 ? `\nBCC: ${args.bcc.join(", ")}` : ""
-            }\nSubject: ${forwardSubject}`,
+            }\nSubject: ${forwardSubject}${
+              quoteIsEmpty
+                ? "\nNote: the source message has no body, so the quoted block is empty."
+                : ""
+            }`,
           },
         ],
       };
