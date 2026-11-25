@@ -23,6 +23,7 @@
  */
 
 import type { gmail_v1 } from "googleapis";
+import { textToHtml } from "./html.js";
 
 // Per-client cache: Map<sendAsEmail | "__default__", htmlSignature | "">
 // Empty string means "fetched, no signature configured" — distinct from
@@ -193,26 +194,4 @@ export function injectSignature(
  */
 export function neutralizeSignatureMarker(html: string): string {
   return html.replaceAll(SIGNATURE_MARKER, 'data-gmail-mcp-signature="quoted"');
-}
-
-/**
- * Minimal plain-text-to-HTML converter: each blank-line-separated
- * chunk becomes a `<p>`, and a newline inside one becomes `<br>`.
- * Anything fancier (Markdown, lists) is the caller's to express as
- * HTML.
- */
-export function textToHtml(text: string): string {
-  return escapeHtml(text)
-    .split(/\n{2,}/)
-    .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-    .join("");
-}
-
-export function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
 }

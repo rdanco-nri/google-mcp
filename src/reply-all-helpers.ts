@@ -4,7 +4,9 @@
  */
 
 import emailAddresses from "email-addresses";
-import { escapeHtml, neutralizeSignatureMarker, textToHtml } from "./signature-resolver.js";
+import type { extractHeaders } from "./gmail-headers.js";
+import { escapeHtml, textToHtml } from "./html.js";
+import { neutralizeSignatureMarker } from "./signature-resolver.js";
 
 /**
  * Parses email addresses from a header value (From / To / CC / BCC)
@@ -182,12 +184,10 @@ export function addFwdPrefix(subject: string): string {
 }
 
 /** From/Date/Subject/To pulled from the message a forward quotes. */
-export interface ForwardedHeaders {
-  from: string;
-  date: string;
-  subject: string;
-  to: string;
-}
+export type ForwardedHeaders = Pick<
+  ReturnType<typeof extractHeaders>,
+  "from" | "date" | "subject" | "to"
+>;
 
 /**
  * The attribution lines Gmail's web UI opens a forwarded message
@@ -225,7 +225,7 @@ export function buildForwardQuotedBody(
   preface?: string,
 ): string {
   const quoted = [...forwardAttributionLines(originalHeaders), "", originalText].join("\n");
-  return preface && preface.length > 0 ? `${preface}\n\n${quoted}` : quoted;
+  return preface ? `${preface}\n\n${quoted}` : quoted;
 }
 
 /**
@@ -255,7 +255,7 @@ export function buildForwardQuotedHtml(
     `${neutralizeSignatureMarker(originalHtml)}</div>`;
   // The <br> keeps the preface clear of the quote when the source's
   // own stylesheet zeroes paragraph margins.
-  return preface && preface.length > 0 ? `${textToHtml(preface)}<br>${quoted}` : quoted;
+  return preface ? `${textToHtml(preface)}<br>${quoted}` : quoted;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { htmlToText } from "./html-to-text.js";
+import { htmlToText } from "./html.js";
 
 describe("htmlToText", () => {
   it("keeps a link's address beside its text, once", () => {

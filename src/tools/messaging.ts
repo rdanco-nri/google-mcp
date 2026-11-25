@@ -25,7 +25,7 @@ import {
   ForwardEmailSchema,
 } from "../tools.js";
 import { sendOrDraftEmail, type EmailSendArgs } from "../email-send.js";
-import { makeHeaderGetter } from "../gmail-headers.js";
+import { extractHeaders, makeHeaderGetter } from "../gmail-headers.js";
 import { addPairedAddress, readPairedList, removePairedAddress } from "../recipient-pairing.js";
 import {
   addFwdPrefix,
@@ -37,7 +37,7 @@ import {
   parseEmailAddresses,
 } from "../reply-all-helpers.js";
 import { extractEmailContent } from "../mime-walkers.js";
-import { htmlToText } from "../html-to-text.js";
+import { htmlToText } from "../html.js";
 import { pickBody } from "../utl.js";
 
 export function registerMessagingTools(
@@ -315,16 +315,8 @@ export function registerMessagingTools(
     authorizedScopes,
   );
 
-  // forward_email — relay an existing message to a new recipient
-  // list. Builds a Gmail-style quoted body (`---------- Forwarded
-  // message ---------` separator + From/Date/Subject/To headers +
-  // the source's body) and prepends the optional `body` preface. A
-  // source with an HTML part is quoted as HTML, with a plain-text
-  // alternative; a source with nothing to quote is refused unless the
-  // caller passes attachments. New thread (no threadId carry-over).
-  // Attachments from the source are NOT re-attached — the caller
-  // chains download_attachment + passes paths via `attachments` if
-  // carry-over is wanted.
+  // forward_email — the tool description in `src/tools.ts` is the
+  // contract: what is quoted, what is refused, and what is not carried.
   const forwardEmail = pull("forward_email");
   defineTool(
     server,
@@ -337,13 +329,7 @@ export function registerMessagingTools(
         id: args.messageId,
         format: "full",
       });
-      const headers = originalEmail.data.payload?.headers || [];
-      const get = makeHeaderGetter(headers);
-      const originalFrom = get("from");
-      const originalDate = get("date");
-      const originalSubject = get("subject");
-      const originalTo = get("to");
-
+      const originalHeaders = extractHeaders(originalEmail.data.payload ?? undefined);
       const { text, html } = extractEmailContent(originalEmail.data.payload || {});
 
       // The HTML read as text decides two things: whether the HTML shows
@@ -362,13 +348,7 @@ export function registerMessagingTools(
         );
       }
 
-      const originalHeaders = {
-        from: originalFrom,
-        date: originalDate,
-        subject: originalSubject,
-        to: originalTo,
-      };
-      const forwardSubject = addFwdPrefix(originalSubject);
+      const forwardSubject = addFwdPrefix(originalHeaders.subject);
       const emailArgs: EmailSendArgs = {
         to: args.to,
         cc: args.cc,
@@ -376,11 +356,11 @@ export function registerMessagingTools(
         subject: forwardSubject,
         body: buildForwardQuotedBody(originalHeaders, quotedText, args.body),
         attachments: args.attachments,
+        ...(htmlAsText !== "" && {
+          htmlBody: buildForwardQuotedHtml(originalHeaders, html, args.body),
+          mimeType: "multipart/alternative",
+        }),
       };
-      if (htmlAsText !== "") {
-        emailArgs.htmlBody = buildForwardQuotedHtml(originalHeaders, html, args.body);
-        emailArgs.mimeType = "multipart/alternative";
-      }
 
       await sendOrDraftEmail(gmail, "send", emailArgs);
 

@@ -559,14 +559,8 @@ export const ReplyToEmailSchema = z.object({
     .describe("List of file paths to attach to the reply"),
 });
 
-// Forward Email schema — relay an existing message to a fresh recipient
-// list. The handler fetches the source, builds a Gmail-style quoted
-// body (`---------- Forwarded message ---------` + headers + the
-// source's body, as HTML when the source has an HTML part), and
-// prepends the optional `body` preface. New thread (no
-// `threadId` carry-over). Attachments from the source are NOT
-// re-attached; the caller chains `download_attachment` + passes paths
-// here when carry-over is desired.
+// Forward Email schema. The `forward_email` tool description is the
+// contract for what the handler quotes, refuses, and leaves behind.
 export const ForwardEmailSchema = z.object({
   messageId: GmailIdSchema.describe("ID of the email message to forward"),
   to: coerceArray(z.string()).describe(

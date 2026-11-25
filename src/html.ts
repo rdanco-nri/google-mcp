@@ -1,9 +1,30 @@
 /**
- * Plain-text rendering of an HTML email body, for the text/plain
- * alternative of a message that quotes one.
+ * Conversions between plain text and HTML for message bodies.
  */
 
 import { Parser } from "htmlparser2";
+
+export function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Minimal plain-text-to-HTML converter: each blank-line-separated
+ * chunk becomes a `<p>`, and a newline inside one becomes `<br>`.
+ * Anything fancier (Markdown, lists) is the caller's to express as
+ * HTML.
+ */
+export function textToHtml(text: string): string {
+  return escapeHtml(text)
+    .split(/\n{2,}/)
+    .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
 
 const DROPPED = new Set(["style", "script", "head", "title"]);
 
@@ -57,7 +78,8 @@ const CELL = new Set(["td", "th"]);
 export function htmlToText(html: string): string {
   let out = "";
   let dropDepth = 0;
-  const openLinks: Array<{ href: string; start: number }> = [];
+  // Each open link collects its own text, so closing one never rereads `out`.
+  const openLinks: Array<{ href: string; text: string }> = [];
 
   const parser = new Parser(
     {
@@ -69,14 +91,17 @@ export function htmlToText(html: string): string {
         if (dropDepth > 0) return;
 
         if (name === "br" || BLOCK.has(name)) out += "\n";
-        if (name === "a") openLinks.push({ href: attribs.href ?? "", start: out.length });
+        if (name === "a") openLinks.push({ href: attribs.href ?? "", text: "" });
         if (name === "img" && /^https?:/i.test(attribs.src ?? "")) {
           out += `[image: ${attribs.alt?.trim() || attribs.src}]`;
         }
       },
 
       ontext(text) {
-        if (dropDepth === 0) out += text.replace(/\s+/g, " ");
+        if (dropDepth > 0) return;
+        const collapsed = text.replace(/\s+/g, " ");
+        out += collapsed;
+        for (const link of openLinks) link.text += collapsed;
       },
 
       onclosetag(name) {
@@ -89,7 +114,7 @@ export function htmlToText(html: string): string {
         if (name === "a") {
           const link = openLinks.pop();
           if (link && /^(https?|mailto):/i.test(link.href)) {
-            const text = out.slice(link.start).trim();
+            const text = link.text.trim();
             if (text === "") out += link.href;
             else if (text !== link.href.replace(/^mailto:/i, "")) out += ` <${link.href}>`;
           }

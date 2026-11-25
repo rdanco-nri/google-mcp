@@ -23,6 +23,7 @@ import type { gmail_v1 } from "googleapis";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../server.js";
+import { MAX_LINE_OCTETS } from "../email-send.js";
 import { resetRateLimitHistory } from "../rate-limit.js";
 import { resetJailDirCache } from "../utl.js";
 
@@ -843,6 +844,12 @@ function decodeRawParts(raw: string): RawParts {
 
   walk(message);
   return parts;
+}
+
+/** The decoded parts of the `index`-th message handed to `messages.send`. */
+function sentParts(fix: ConnectedFixture, index = 0): RawParts {
+  const sent = fix.calls.messageSend[index] as { requestBody: { raw: string } };
+  return decodeRawParts(sent.requestBody.raw);
 }
 
 /** The longest line of a sent message, in octets. */
@@ -1945,9 +1952,8 @@ describe("PR #7 registrars — send_email / draft_email (messaging.ts)", () => {
         },
       })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
       expect(result.isError).toBeFalsy();
-      const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
-      const parts = decodeRawParts(sent.requestBody.raw);
-      expect(longestLineOctets(parts.message)).toBeLessThanOrEqual(998);
+      const parts = sentParts(fix);
+      expect(longestLineOctets(parts.message)).toBeLessThanOrEqual(MAX_LINE_OCTETS);
       expect(parts.html?.trim()).toBe(htmlBody);
       expect(parts.text?.trim()).toBe("Short text.");
     });
@@ -1967,9 +1973,8 @@ describe("PR #7 registrars — send_email / draft_email (messaging.ts)", () => {
         },
       })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
       expect(result.isError).toBeFalsy();
-      const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
-      const parts = decodeRawParts(sent.requestBody.raw);
-      expect(longestLineOctets(parts.message)).toBeLessThanOrEqual(998);
+      const parts = sentParts(fix);
+      expect(longestLineOctets(parts.message)).toBeLessThanOrEqual(MAX_LINE_OCTETS);
       expect(parts.text?.trim()).toBe(body);
       expect(parts.html).toBeUndefined();
     });
@@ -2573,8 +2578,7 @@ describe("PR #7 registrars — forward_email", () => {
         expect(result.isError).toBeFalsy();
         expect(result.content[0]?.text).not.toContain("quoted block is empty");
         expect(fix.calls.messageSend).toHaveLength(1);
-        const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
-        const parts = decodeRawParts(sent.requestBody.raw);
+        const parts = sentParts(fix);
 
         // The HTML part carries the source as it was, under the
         // escaped preface and attribution lines.
@@ -2604,8 +2608,7 @@ describe("PR #7 registrars — forward_email", () => {
           arguments: { messageId: "msg_both_parts", to: ["carol@example.com"] },
         })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
         expect(result.isError).toBeFalsy();
-        const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
-        const parts = decodeRawParts(sent.requestBody.raw);
+        const parts = sentParts(fix);
         expect(parts.html).toContain(
           "<p>The <b>formatted</b> version of the quarterly update.</p>",
         );
@@ -2666,8 +2669,7 @@ describe("PR #7 registrars — forward_email", () => {
           "Note: the source message has no body, so the quoted block is empty.",
         );
         expect(fix.calls.messageSend).toHaveLength(1);
-        const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
-        const parts = decodeRawParts(sent.requestBody.raw);
+        const parts = sentParts(fix);
         expect(parts.text).toContain("---------- Forwarded message ---------");
         expect(parts.html).toBeUndefined();
         expect(parts.message).toContain("carried-over.pdf");
