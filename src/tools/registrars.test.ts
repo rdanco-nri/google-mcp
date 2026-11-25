@@ -793,6 +793,63 @@ function mockGmail(opts: MockGmailOpts = {}): {
   return { client, calls };
 }
 
+interface RawParts {
+  /** The whole message as sent, headers included. */
+  message: string;
+  text?: string;
+  html?: string;
+}
+
+/**
+ * Decode a `requestBody.raw` payload into its text/plain and text/html
+ * bodies, undoing the quoted-printable or base64 transfer encoding
+ * Nodemailer applies. A message without a part of a type leaves that
+ * field undefined.
+ */
+function decodeRawParts(raw: string): RawParts {
+  const message = Buffer.from(raw, "base64url").toString("utf-8");
+  const parts: RawParts = { message };
+
+  const walk = (entity: string): void => {
+    const split = /\r?\n\r?\n/.exec(entity);
+    const head = (split ? entity.slice(0, split.index) : entity).replace(/\r?\n[ \t]+/g, " ");
+    const body = split ? entity.slice(split.index + split[0].length) : "";
+    const header = (name: string): string =>
+      new RegExp(`^${name}:\\s*(.*)$`, "im").exec(head)?.[1] ?? "";
+
+    const contentType = header("Content-Type") || "text/plain";
+    const boundary = /boundary="?([^";]+)"?/i.exec(contentType)?.[1];
+    if (boundary) {
+      for (const chunk of body.split(`--${boundary}`).slice(1)) {
+        if (!chunk.startsWith("--")) walk(chunk.replace(/^\r?\n/, ""));
+      }
+      return;
+    }
+
+    const encoding = header("Content-Transfer-Encoding").toLowerCase();
+    let decoded = body;
+    if (encoding === "base64") {
+      decoded = Buffer.from(body, "base64").toString("utf-8");
+    } else if (encoding === "quoted-printable") {
+      const bytes = body
+        .replace(/=\r?\n/g, "")
+        .replace(/=([0-9A-F]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+      decoded = Buffer.from(bytes, "latin1").toString("utf-8");
+    }
+
+    if (/^text\/html/i.test(contentType)) parts.html ??= decoded;
+    else if (/^text\/plain/i.test(contentType)) parts.text ??= decoded;
+  };
+
+  walk(message);
+  return parts;
+}
+
+/** The longest line of a sent message, in octets. */
+function longestLineOctets(message: string): number {
+  return Math.max(...message.split(/\r?\n/).map((line) => Buffer.byteLength(line, "utf8")));
+}
+
 interface ConnectedFixture {
   client: Client;
   calls: MockedGmailCalls;
@@ -1869,6 +1926,52 @@ describe("PR #7 registrars — send_email / draft_email (messaging.ts)", () => {
       expect(decoded).toContain("To: bob@example.com");
       expect(decoded).toContain("Subject: Hello from test");
       expect(decoded).toContain("This is the test body.");
+    });
+  });
+
+  it("send_email encodes an HTML line past 998 octets instead of sending it raw", async () => {
+    await withFix(["gmail.send"], async (fix) => {
+      const link = "https://example.com/report/42";
+      const htmlBody = `<p>${"wide ".repeat(300)}<a href="${link}">Open — report</a></p>`;
+      const result = (await fix.client.callTool({
+        name: "send_email",
+        arguments: {
+          to: ["bob@example.com"],
+          subject: "Long HTML line",
+          body: "Short text.",
+          htmlBody,
+          mimeType: "multipart/alternative",
+          from: "me@example.com",
+        },
+      })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+      expect(result.isError).toBeFalsy();
+      const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
+      const parts = decodeRawParts(sent.requestBody.raw);
+      expect(longestLineOctets(parts.message)).toBeLessThanOrEqual(998);
+      expect(parts.html?.trim()).toBe(htmlBody);
+      expect(parts.text?.trim()).toBe("Short text.");
+    });
+  });
+
+  it("send_email encodes a text line past 998 octets and adds no HTML part", async () => {
+    await withFix(["gmail.send"], async (fix) => {
+      const body = `${"wide ".repeat(300)}https://example.com/report/42`;
+      const result = (await fix.client.callTool({
+        name: "send_email",
+        arguments: {
+          to: ["bob@example.com"],
+          subject: "Long text line",
+          body,
+          htmlBody: "<p>dropped, as the default text/plain type drops it</p>",
+          from: "me@example.com",
+        },
+      })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+      expect(result.isError).toBeFalsy();
+      const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
+      const parts = decodeRawParts(sent.requestBody.raw);
+      expect(longestLineOctets(parts.message)).toBeLessThanOrEqual(998);
+      expect(parts.text?.trim()).toBe(body);
+      expect(parts.html).toBeUndefined();
     });
   });
 

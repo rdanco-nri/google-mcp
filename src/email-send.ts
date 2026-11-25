@@ -18,7 +18,12 @@
  */
 
 import type { gmail_v1 } from "googleapis";
-import { ValidatedEmailArgs, createEmailMessage, createEmailWithNodemailer } from "./utl.js";
+import {
+  ValidatedEmailArgs,
+  createEmailMessage,
+  createEmailWithNodemailer,
+  resolveMimeType,
+} from "./utl.js";
 import { resolveDefaultSender } from "./sender-resolver.js";
 import { resolveSignature, injectSignature } from "./signature-resolver.js";
 import { requirePairedRecipients } from "./recipient-pairing.js";
@@ -40,21 +45,50 @@ interface GmailMessageRequest {
   threadId?: string;
 }
 
+// RFC 5322 §2.1.1: a line may run at most 998 octets before its CRLF.
+const MAX_LINE_OCTETS = 998;
+
+function hasOverlongLine(text: string | undefined): boolean {
+  if (!text) return false;
+  return text.split(/\r?\n/).some((line) => Buffer.byteLength(line, "utf8") > MAX_LINE_OCTETS);
+}
+
+/**
+ * Shape `args` so Nodemailer emits the same parts `createEmailMessage`
+ * would: it sends whichever of `body` and `htmlBody` it is handed and
+ * ignores `mimeType`.
+ */
+function asNodemailerParts(args: EmailSendArgs): EmailSendArgs {
+  switch (resolveMimeType(args)) {
+    case "multipart/alternative":
+      return { ...args, htmlBody: args.htmlBody || args.body };
+    case "text/html":
+      return { ...args, body: "", htmlBody: args.htmlBody || args.body };
+    default:
+      return { ...args, htmlBody: undefined };
+  }
+}
+
 /**
  * Assemble + base64url-encode the RFC 822 representation of a
  * message. Picks the Nodemailer pipeline when the message carries
- * attachments (multipart MIME assembly is non-trivial) and the
- * lighter `createEmailMessage` path otherwise. Extracted so the
+ * attachments (multipart MIME assembly is non-trivial) or a body line
+ * too long to send unencoded, and the lighter `createEmailMessage`
+ * path otherwise. Extracted so the
  * `update_draft` handler can produce the exact same encoded payload
  * `sendOrDraftEmail` would have produced — Gmail's
  * `users.drafts.update` takes the same `{ raw, threadId? }` shape as
  * `users.messages.send` / `users.drafts.create`.
  */
 export async function buildEncodedRawMessage(args: EmailSendArgs): Promise<string> {
-  const message =
-    args.attachments && args.attachments.length > 0
-      ? await createEmailWithNodemailer(args)
-      : createEmailMessage(args);
+  let message: string;
+  if (args.attachments && args.attachments.length > 0) {
+    message = await createEmailWithNodemailer(args);
+  } else if (hasOverlongLine(args.body) || hasOverlongLine(args.htmlBody)) {
+    message = await createEmailWithNodemailer(asNodemailerParts(args));
+  } else {
+    message = createEmailMessage(args);
+  }
   return Buffer.from(message)
     .toString("base64")
     .replace(/\+/g, "-")
