@@ -110,7 +110,9 @@ interface MockGmailOpts {
   existingLabels?: Array<{ id: string; name: string; type?: string }>;
   /**
    * Body bytes returned by `gmail.users.messages.get`'s `text/plain`
-   * MIME part for the `read_email` truncation tests.
+   * MIME part for the `read_email` truncation tests. An empty string
+   * drops the part, which with `messageBodyHtml` makes an HTML-only
+   * message.
    */
   messageBodyText?: string;
   /**
@@ -430,10 +432,14 @@ function mockGmail(opts: MockGmailOpts = {}): {
                   : []),
               ],
               parts: [
-                {
-                  mimeType: "text/plain",
-                  body: { size: bodyText.length, data: bodyB64 },
-                },
+                ...(bodyText === ""
+                  ? []
+                  : [
+                      {
+                        mimeType: "text/plain",
+                        body: { size: bodyText.length, data: bodyB64 },
+                      },
+                    ]),
                 ...htmlParts,
                 ...attParts,
               ],
@@ -2441,6 +2447,38 @@ describe("PR #7 registrars — forward_email", () => {
         .join("\n\n");
       expect(bodyStart.startsWith("---------- Forwarded message ---------")).toBe(true);
     });
+  });
+
+  it("never reports success for an HTML-only source whose content the forward left out", async () => {
+    const link = "https://example.com/open-info-request/42";
+    await withFix(
+      ["gmail.send", "gmail.readonly"],
+      async (fix) => {
+        const result = (await fix.client.callTool({
+          name: "forward_email",
+          arguments: {
+            messageId: "msg_html_only",
+            to: ["carol@example.com"],
+            body: "FYI — see below.",
+          },
+        })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+
+        // Either outcome is sound: the forward carries the source's
+        // link, or the tool refuses and sends nothing.
+        if (result.isError) {
+          expect(fix.calls.messageSend).toHaveLength(0);
+          return;
+        }
+        expect(fix.calls.messageSend).toHaveLength(1);
+        const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
+        const decoded = Buffer.from(sent.requestBody.raw, "base64url").toString("utf-8");
+        expect(decoded).toContain(link);
+      },
+      {
+        messageBodyText: "",
+        messageBodyHtml: `<p>More information required.</p><a href="${link}">View Open Info Request</a>`,
+      },
+    );
   });
 });
 
