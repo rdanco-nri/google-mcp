@@ -5,9 +5,11 @@ import {
   addRePrefix,
   addFwdPrefix,
   buildForwardQuotedBody,
+  buildForwardQuotedHtml,
   buildReferencesHeader,
   buildReplyAllRecipients,
 } from "./reply-all-helpers.js";
+import { SIGNATURE_MARKER } from "./signature-resolver.js";
 
 describe("parseEmailAddresses", () => {
   it("extracts email from simple email address", () => {
@@ -340,5 +342,48 @@ describe("buildForwardQuotedBody", () => {
     // empty trailer. Pin so a regression that adds a `||` fallback
     // doesn't sneak default text into the forward.
     expect(out.endsWith("To: bob@example.com\n\n")).toBe(true);
+  });
+});
+
+describe("buildForwardQuotedHtml", () => {
+  const headers = {
+    from: "Alice <alice@example.com>",
+    date: "Fri, 25 Apr 2026 10:00:00 +0000",
+    subject: "Q&A <draft>",
+    to: "bob@example.com",
+  };
+  const source = '<p>Hello</p><a href="https://example.com/x">Open</a>';
+
+  it("wraps the source in the quote markup of Gmail's own Forward", () => {
+    // The container, the attribution block, and the two breaks before
+    // the source are what Gmail's web UI sent for a hand forward.
+    expect(buildForwardQuotedHtml(headers, source)).toBe(
+      '<div class="gmail_quote gmail_quote_container">' +
+        '<div dir="ltr" class="gmail_attr">---------- Forwarded message ---------<br>' +
+        "From: Alice &lt;alice@example.com&gt;<br>" +
+        "Date: Fri, 25 Apr 2026 10:00:00 +0000<br>" +
+        "Subject: Q&amp;A &lt;draft&gt;<br>" +
+        "To: bob@example.com<br></div><br><br>" +
+        `${source}</div>`,
+    );
+  });
+
+  it("escapes the preface and keeps its line breaks", () => {
+    const out = buildForwardQuotedHtml(headers, source, "See <this>\nand that.\n\nThanks");
+    expect(out.startsWith("<p>See &lt;this&gt;<br>and that.</p><p>Thanks</p><div ")).toBe(true);
+  });
+
+  it("escapes header values so an address survives as text", () => {
+    const out = buildForwardQuotedHtml(headers, source);
+    expect(out).toContain("From: Alice &lt;alice@example.com&gt;");
+    expect(out).not.toContain("<alice@example.com>");
+  });
+
+  it("rewrites a quoted signature marker so the forward still gets signed", () => {
+    const signed = `<p>Earlier mail</p><div ${SIGNATURE_MARKER}>Rob</div>`;
+    const out = buildForwardQuotedHtml(headers, signed);
+    expect(out).not.toContain(SIGNATURE_MARKER);
+    expect(out).toContain("<p>Earlier mail</p>");
+    expect(out).toContain(">Rob</div>");
   });
 });

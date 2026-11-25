@@ -4,6 +4,7 @@
  */
 
 import emailAddresses from "email-addresses";
+import { escapeHtml, neutralizeSignatureMarker, textToHtml } from "./signature-resolver.js";
 
 /**
  * Parses email addresses from a header value (From / To / CC / BCC)
@@ -180,43 +181,79 @@ export function addFwdPrefix(subject: string): string {
   return `Fwd: ${subject}`;
 }
 
+/** From/Date/Subject/To pulled from the message a forward quotes. */
+export interface ForwardedHeaders {
+  from: string;
+  date: string;
+  subject: string;
+  to: string;
+}
+
 /**
- * Builds the quoted-message body for a forward, mirroring Gmail's
- * web-UI format (`---------- Forwarded message ---------` separator
- * + From/Date/Subject/To headers + blank line + original text body).
+ * The attribution lines Gmail's web UI opens a forwarded message
+ * with, shared by the plain-text and HTML quoted bodies.
+ */
+function forwardAttributionLines(headers: ForwardedHeaders): string[] {
+  return [
+    "---------- Forwarded message ---------",
+    `From: ${headers.from}`,
+    `Date: ${headers.date}`,
+    `Subject: ${headers.subject}`,
+    `To: ${headers.to}`,
+  ];
+}
+
+/**
+ * Builds the plain-text quoted body for a forward, mirroring Gmail's
+ * web-UI format: the attribution lines, a blank line, then the
+ * source's text. It is the whole body of a plain-text forward and the
+ * text/plain alternative of an HTML one (`buildForwardQuotedHtml`).
  *
  * The optional `preface` is prepended verbatim, separated from the
  * quoted block by one blank line. When omitted, the forward stands
  * on its own — useful for relay forwards where the agent has no
  * comment to add.
  *
- * Output is always plain text (UTF-8). HTML forwards are intentionally
- * out of scope for this helper — building a faithful quoted-HTML
- * representation requires sanitizing the source HTML body and pinning
- * a wrapper `<blockquote>` style that survives every recipient's
- * client. Callers wanting an HTML forward should compose the body
- * themselves and call `send_email` directly.
- *
  * @param originalHeaders - From/Date/Subject/To pulled from the source message
- * @param originalText - The text/plain body of the source message (already MIME-decoded)
+ * @param originalText - The source's body as text (already MIME-decoded)
  * @param preface - Optional comment to prepend before the quoted block
  * @returns The full plain-text body to put in the forward's `body` field
  */
 export function buildForwardQuotedBody(
-  originalHeaders: { from: string; date: string; subject: string; to: string },
+  originalHeaders: ForwardedHeaders,
   originalText: string,
   preface?: string,
 ): string {
-  const header = [
-    "---------- Forwarded message ---------",
-    `From: ${originalHeaders.from}`,
-    `Date: ${originalHeaders.date}`,
-    `Subject: ${originalHeaders.subject}`,
-    `To: ${originalHeaders.to}`,
-    "",
-    originalText,
-  ].join("\n");
-  return preface && preface.length > 0 ? `${preface}\n\n${header}` : header;
+  const quoted = [...forwardAttributionLines(originalHeaders), "", originalText].join("\n");
+  return preface && preface.length > 0 ? `${preface}\n\n${quoted}` : quoted;
+}
+
+/**
+ * Builds the HTML quoted body for a forward of a source that has an
+ * HTML part, in the markup Gmail's web UI wraps a forwarded message
+ * in: a `gmail_quote` container holding the attribution lines, then
+ * the source's HTML.
+ *
+ * The source HTML goes in as it is, `<style>` blocks included, so its
+ * links and layout survive. The preface and the header values are
+ * plain text and get escaped.
+ *
+ * @param originalHeaders - From/Date/Subject/To pulled from the source message
+ * @param originalHtml - The text/html body of the source message (already MIME-decoded)
+ * @param preface - Optional plain-text comment to place before the quoted block
+ * @returns The full HTML body to put in the forward's `htmlBody` field
+ */
+export function buildForwardQuotedHtml(
+  originalHeaders: ForwardedHeaders,
+  originalHtml: string,
+  preface?: string,
+): string {
+  const attribution = forwardAttributionLines(originalHeaders).map(escapeHtml).join("<br>");
+  const quoted =
+    `<div class="gmail_quote gmail_quote_container">` +
+    `<div dir="ltr" class="gmail_attr">${attribution}<br></div><br><br>` +
+    `${neutralizeSignatureMarker(originalHtml)}</div>`;
+  return preface && preface.length > 0 ? `${textToHtml(preface)}${quoted}` : quoted;
 }
 
 /**

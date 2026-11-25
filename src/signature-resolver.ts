@@ -181,20 +181,34 @@ export function injectSignature(
   }
 
   // Plain-text-only: promote to HTML, keep the plain text as the
-  // text/plain alternative. Each blank-line-separated chunk becomes a
-  // <p>; trailing newlines inside a paragraph become <br>. This is a
-  // minimal converter — anything fancier (Markdown, lists) should be
-  // expressed as htmlBody by the caller.
-  const escaped = escapeHtml(args.body);
-  const paragraphs = escaped
-    .split(/\n{2,}/)
-    .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-    .join("");
-  args.htmlBody = `${paragraphs}<br>--<br>${wrapped}`;
+  // text/plain alternative.
+  args.htmlBody = `${textToHtml(args.body)}<br>--<br>${wrapped}`;
   args.mimeType = "multipart/alternative";
 }
 
-function escapeHtml(s: string): string {
+/**
+ * Rewrites `SIGNATURE_MARKER` in HTML quoted from another message, so
+ * `injectSignature` still signs a message that quotes mail this server
+ * sent earlier.
+ */
+export function neutralizeSignatureMarker(html: string): string {
+  return html.replaceAll(SIGNATURE_MARKER, 'data-gmail-mcp-signature="quoted"');
+}
+
+/**
+ * Minimal plain-text-to-HTML converter: each blank-line-separated
+ * chunk becomes a `<p>`, and a newline inside one becomes `<br>`.
+ * Anything fancier (Markdown, lists) is the caller's to express as
+ * HTML.
+ */
+export function textToHtml(text: string): string {
+  return escapeHtml(text)
+    .split(/\n{2,}/)
+    .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
