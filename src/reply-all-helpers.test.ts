@@ -370,7 +370,7 @@ describe("buildForwardQuotedHtml", () => {
 
   it("escapes the preface and keeps its line breaks", () => {
     const out = buildForwardQuotedHtml(headers, source, "See <this>\nand that.\n\nThanks");
-    expect(out.startsWith("<p>See &lt;this&gt;<br>and that.</p><p>Thanks</p><div ")).toBe(true);
+    expect(out.startsWith("<p>See &lt;this&gt;<br>and that.</p><p>Thanks</p><br><div ")).toBe(true);
   });
 
   it("escapes header values so an address survives as text", () => {

@@ -11,6 +11,9 @@ describe("htmlToText", () => {
       "https://example.com/a",
     );
     expect(htmlToText('<a href="https://example.com/a"></a>')).toBe("https://example.com/a");
+    expect(htmlToText('<a href="mailto:rob@example.com">rob@example.com</a>')).toBe(
+      "rob@example.com",
+    );
   });
 
   it("ends a line at a block element, a <br>, and a table row, and spaces table cells", () => {

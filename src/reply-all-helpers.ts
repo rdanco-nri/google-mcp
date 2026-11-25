@@ -253,7 +253,9 @@ export function buildForwardQuotedHtml(
     `<div class="gmail_quote gmail_quote_container">` +
     `<div dir="ltr" class="gmail_attr">${attribution}<br></div><br><br>` +
     `${neutralizeSignatureMarker(originalHtml)}</div>`;
-  return preface && preface.length > 0 ? `${textToHtml(preface)}${quoted}` : quoted;
+  // The <br> keeps the preface clear of the quote when the source's
+  // own stylesheet zeroes paragraph margins.
+  return preface && preface.length > 0 ? `${textToHtml(preface)}<br>${quoted}` : quoted;
 }
 
 /**

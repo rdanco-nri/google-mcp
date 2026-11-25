@@ -91,7 +91,7 @@ export function htmlToText(html: string): string {
           if (link && /^(https?|mailto):/i.test(link.href)) {
             const text = out.slice(link.start).trim();
             if (text === "") out += link.href;
-            else if (text !== link.href) out += ` <${link.href}>`;
+            else if (text !== link.href.replace(/^mailto:/i, "")) out += ` <${link.href}>`;
           }
         }
         if (CELL.has(name)) out += " ";
