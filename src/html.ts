@@ -71,13 +71,15 @@ const CELL = new Set(["td", "th"]);
  * - An image at a web address reads `[image: alt]`, or its address
  *   when it has no alt text. An inline (`cid:`) image leaves nothing.
  * - `<style>`, `<script>`, `<head>`, and `<title>` contents are dropped.
- * - Runs of whitespace collapse, and blank lines never stack.
+ * - Runs of whitespace collapse, and blank lines never stack. A
+ *   `<pre>` block keeps its line breaks.
  *
  * @returns The text, or an empty string when the HTML shows a reader nothing
  */
 export function htmlToText(html: string): string {
   let out = "";
   let dropDepth = 0;
+  let preDepth = 0;
   // Each open link collects its own text, so closing one never rereads `out`.
   const openLinks: Array<{ href: string; text: string }> = [];
 
@@ -90,6 +92,7 @@ export function htmlToText(html: string): string {
         }
         if (dropDepth > 0) return;
 
+        if (name === "pre") preDepth++;
         if (name === "br" || BLOCK.has(name)) out += "\n";
         if (name === "a") openLinks.push({ href: attribs.href ?? "", text: "" });
         if (name === "img" && /^https?:/i.test(attribs.src ?? "")) {
@@ -99,7 +102,7 @@ export function htmlToText(html: string): string {
 
       ontext(text) {
         if (dropDepth > 0) return;
-        const collapsed = text.replace(/\s+/g, " ");
+        const collapsed = text.replace(preDepth > 0 ? /[ \t]+/g : /\s+/g, " ");
         out += collapsed;
         for (const link of openLinks) link.text += collapsed;
       },
@@ -115,10 +118,11 @@ export function htmlToText(html: string): string {
           const link = openLinks.pop();
           if (link && /^(https?|mailto):/i.test(link.href)) {
             const text = link.text.trim();
-            if (text === "") out += link.href;
+            if (text === "") out += ` ${link.href}`;
             else if (text !== link.href.replace(/^mailto:/i, "")) out += ` <${link.href}>`;
           }
         }
+        if (name === "pre") preDepth = Math.max(0, preDepth - 1);
         if (CELL.has(name)) out += " ";
         if (BLOCK.has(name)) out += "\n";
       },

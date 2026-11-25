@@ -2096,7 +2096,7 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "forward_email",
     description: [
-      "Forward an existing message to a fresh recipient list. The MCP fetches the source, builds a Gmail-style quoted body (`---------- Forwarded message ---------` separator + From/Date/Subject/To headers + the source's body), prepends the optional `body` preface, and sends in a NEW thread. A source with an HTML part is quoted as HTML, links and layout intact, with a plain-text alternative; a plain-text source is quoted as plain text. **The forward is sent immediately.**",
+      "Forward an existing message to a fresh recipient list. The MCP fetches the source, builds a Gmail-style quoted body (`---------- Forwarded message ---------` separator + From/Date/Subject/To headers + the source's body), prepends the optional `body` preface, and sends in a NEW thread. A source whose HTML part shows any text, link, or web image is quoted as HTML, links and layout intact, with a plain-text alternative; any other source is quoted as plain text. **The forward is sent immediately.**",
       "",
       "USE WHEN: passing a message along to a recipient who was not on the original thread — the safe default for a relay handoff.",
       "",

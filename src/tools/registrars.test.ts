@@ -2648,6 +2648,47 @@ describe("PR #7 registrars — forward_email", () => {
     );
   });
 
+  it("quotes the source's own text when its HTML shows a reader nothing", async () => {
+    await withFix(
+      ["gmail.send", "gmail.readonly"],
+      async (fix) => {
+        const result = (await fix.client.callTool({
+          name: "forward_email",
+          arguments: { messageId: "msg_text_and_empty_html", to: ["carol@example.com"] },
+        })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(result.isError).toBeFalsy();
+        expect(fix.calls.messageSend).toHaveLength(1);
+        const parts = sentParts(fix);
+        expect(parts.text).toContain("Please see the chart below.");
+        expect(parts.html).toBeUndefined();
+      },
+      {
+        // Short text beside long HTML is what `pickBody` reads as a stub.
+        messageBodyText: "Please see the chart below.",
+        messageBodyHtml: `<style>${"p { margin: 0 !important; } ".repeat(12)}</style><img src="cid:chart.png">`,
+      },
+    );
+  });
+
+  it("send_email keeps a CRLF body of 998-octet lines on the unencoded path", async () => {
+    await withFix(["gmail.send"], async (fix) => {
+      const line = "a".repeat(MAX_LINE_OCTETS);
+      await fix.client.callTool({
+        name: "send_email",
+        arguments: {
+          to: ["bob@example.com"],
+          subject: "Lines at the limit",
+          body: `${line}\r\n${line}`,
+          from: "me@example.com",
+        },
+      });
+      const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
+      const message = Buffer.from(sent.requestBody.raw, "base64url").toString("utf-8");
+      expect(message).toContain("Content-Transfer-Encoding: 7bit");
+      expect(message).toContain(`${line}\r\n${line}`);
+    });
+  });
+
   it("sends a bodiless source when the caller passes attachments, and says the quote is empty", async () => {
     await withFix(
       ["gmail.send", "gmail.readonly"],

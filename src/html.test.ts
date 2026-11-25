@@ -51,6 +51,17 @@ describe("htmlToText", () => {
     expect(htmlToText("<style>p { margin: 0; }</style><div> &nbsp; </div>")).toBe("");
   });
 
+  it("sets a link without text apart from what comes before it", () => {
+    expect(
+      htmlToText('<a href="https://x.com/go"><img src="https://cdn.x.com/b.png" alt="Button"></a>'),
+    ).toBe("[image: Button] https://x.com/go");
+    expect(htmlToText('Click<a href="https://x.com/go"></a>')).toBe("Click https://x.com/go");
+  });
+
+  it("keeps the line breaks of a <pre> block", () => {
+    expect(htmlToText("<pre>line1\n  line2\nline3</pre>")).toBe("line1\nline2\nline3");
+  });
+
   it("collapses whitespace and never stacks blank lines", () => {
     const html =
       "<div>\n   <div>Spread \n\t  out&nbsp;&nbsp;text</div>\n\n</div><div></div><p>Next</p>";

@@ -334,9 +334,11 @@ export function registerMessagingTools(
 
       // The HTML read as text decides two things: whether the HTML shows
       // a reader anything, and what the plain-text part quotes when the
-      // source's own text part is missing or a stub.
+      // source's own text part is missing or a stub. HTML that reads as
+      // empty leaves the source's own text as the quote.
       const htmlAsText = html ? htmlToText(html) : "";
-      const quotedText = pickBody(text, html).source === "text" ? text : htmlAsText;
+      const picked = pickBody(text, html).source === "text" ? text : htmlAsText;
+      const quotedText = picked.trim() !== "" ? picked : text;
       const quoteIsEmpty = quotedText.trim() === "";
       const hasAttachments = (args.attachments?.length ?? 0) > 0;
 

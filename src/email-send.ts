@@ -54,7 +54,10 @@ function hasOverlongLine(text: string | undefined): boolean {
   let start = 0;
   while (start < text.length) {
     const newline = text.indexOf("\n", start);
-    const end = newline === -1 ? text.length : newline;
+    const next = newline === -1 ? text.length : newline;
+
+    // The \r of a CRLF ends the line and isn't part of it.
+    const end = next > start && text[next - 1] === "\r" ? next - 1 : next;
     const units = end - start;
 
     // UTF-8 spends one to three octets per UTF-16 code unit, so only a
@@ -66,7 +69,7 @@ function hasOverlongLine(text: string | undefined): boolean {
     ) {
       return true;
     }
-    start = end + 1;
+    start = next + 1;
   }
   return false;
 }
