@@ -483,16 +483,19 @@ export interface ValidatedEmailArgs {
   threadId?: string;
 }
 
+/**
+ * The content type a message goes out as: the explicit `mimeType`,
+ * promoted to multipart/alternative when an `htmlBody` rides along
+ * with anything other than text/plain.
+ */
+export function resolveMimeType(args: Pick<ValidatedEmailArgs, "htmlBody" | "mimeType">): string {
+  const mimeType = args.mimeType || "text/plain";
+  return args.htmlBody && mimeType !== "text/plain" ? "multipart/alternative" : mimeType;
+}
+
 export function createEmailMessage(validatedArgs: ValidatedEmailArgs): string {
   const encodedSubject = encodeEmailHeader(sanitizeHeaderValue(validatedArgs.subject));
-  // Determine content type based on available content and explicit mimeType
-  let mimeType = validatedArgs.mimeType || "text/plain";
-
-  // If htmlBody is provided and mimeType isn't explicitly set to text/plain,
-  // use multipart/alternative to include both versions
-  if (validatedArgs.htmlBody && mimeType !== "text/plain") {
-    mimeType = "multipart/alternative";
-  }
+  const mimeType = resolveMimeType(validatedArgs);
 
   // Generate a cryptographically random boundary string for multipart
   // messages. Math.random() is predictable enough that a crafted body

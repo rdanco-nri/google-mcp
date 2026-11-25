@@ -559,13 +559,8 @@ export const ReplyToEmailSchema = z.object({
     .describe("List of file paths to attach to the reply"),
 });
 
-// Forward Email schema — relay an existing message to a fresh recipient
-// list. The handler fetches the source, builds a Gmail-style quoted
-// body (`---------- Forwarded message ---------` + headers + original
-// text), and prepends the optional `body` preface. New thread (no
-// `threadId` carry-over). Attachments from the source are NOT
-// re-attached; the caller chains `download_attachment` + passes paths
-// here when carry-over is desired.
+// Forward Email schema. The `forward_email` tool description is the
+// contract for what the handler quotes, refuses, and leaves behind.
 export const ForwardEmailSchema = z.object({
   messageId: GmailIdSchema.describe("ID of the email message to forward"),
   to: coerceArray(z.string()).describe(
@@ -577,7 +572,7 @@ export const ForwardEmailSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Optional plain-text preface to prepend before the quoted forwarded message. When omitted the forward stands on its own with the standard '---------- Forwarded message ---------' separator.",
+      "Optional plain-text preface to prepend before the quoted forwarded message. HTML in it is shown as typed, not rendered. When omitted the forward stands on its own with the standard '---------- Forwarded message ---------' separator.",
     ),
   attachments: coerceArray(FilePathSchema)
     .optional()
@@ -2101,13 +2096,13 @@ export const toolDefinitions: ToolDefinition[] = [
   {
     name: "forward_email",
     description: [
-      "Forward an existing message to a fresh recipient list. The MCP fetches the source, builds a Gmail-style quoted body (`---------- Forwarded message ---------` separator + From/Date/Subject/To headers + original text body), prepends the optional `body` preface, and sends in a NEW thread. **The forward is sent immediately.**",
+      "Forward an existing message to a fresh recipient list. The MCP fetches the source, builds a Gmail-style quoted body (`---------- Forwarded message ---------` separator + From/Date/Subject/To headers + the source's body), prepends the optional `body` preface, and sends in a NEW thread. A source whose HTML part shows any text, link, or web image is quoted as HTML, links and layout intact, with a plain-text alternative; any other source is quoted as plain text. **The forward is sent immediately.**",
       "",
       "USE WHEN: passing a message along to a recipient who was not on the original thread — the safe default for a relay handoff.",
       "",
-      "DO NOT USE: to reply within the same thread (use `reply_to_email` or `reply_all`). To stage a draft for review, use `draft_email`. Attachments from the source message are NOT re-attached automatically — chain `download_attachment` then pass the resulting paths via `attachments` if you want them carried over.",
+      "DO NOT USE: to reply within the same thread (use `reply_to_email` or `reply_all`). To stage a draft for review, use `draft_email`. Attachments from the source message are NOT re-attached automatically — chain `download_attachment` then pass the resulting paths via `attachments` if you want them carried over. A source with no text or HTML body is refused with an error unless `attachments` is passed; the forward then sends with an empty quoted block and the result says so.",
       "",
-      "SIDE EFFECTS: real email leaves the account in a new thread, recorded in the `Sent` mailbox, billed against daily send quota. Subject to the same `GOOGLE_MCP_RECIPIENT_PAIRING` gate as `send_email`.",
+      "SIDE EFFECTS: real email leaves the account in a new thread, recorded in the `Sent` mailbox, billed against daily send quota. Subject to the same `GOOGLE_MCP_RECIPIENT_PAIRING` gate as `send_email`. An HTML source travels as it is, as Gmail's own Forward sends it: every link in it reaches the new recipients, including unsubscribe, sign-in, and tracking links addressed to the account owner, and a click on one acts on the owner's account. Images the source embeds inline (`cid:`) are not carried and show as broken.",
     ].join("\n"),
     schema: ForwardEmailSchema,
     scopes: ["gmail.modify", "gmail.compose", "gmail.send"],

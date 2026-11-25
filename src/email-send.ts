@@ -18,7 +18,12 @@
  */
 
 import type { gmail_v1 } from "googleapis";
-import { ValidatedEmailArgs, createEmailMessage, createEmailWithNodemailer } from "./utl.js";
+import {
+  ValidatedEmailArgs,
+  createEmailMessage,
+  createEmailWithNodemailer,
+  resolveMimeType,
+} from "./utl.js";
 import { resolveDefaultSender } from "./sender-resolver.js";
 import { resolveSignature, injectSignature } from "./signature-resolver.js";
 import { requirePairedRecipients } from "./recipient-pairing.js";
@@ -40,26 +45,69 @@ interface GmailMessageRequest {
   threadId?: string;
 }
 
+/** RFC 5322 §2.1.1: a line may run at most 998 octets before its CRLF. */
+export const MAX_LINE_OCTETS = 998;
+
+/** Whether any line of `text` runs past `MAX_LINE_OCTETS` as UTF-8. */
+function hasOverlongLine(text: string | undefined): boolean {
+  if (!text) return false;
+  let start = 0;
+  while (start < text.length) {
+    const newline = text.indexOf("\n", start);
+    const next = newline === -1 ? text.length : newline;
+
+    // The \r of a CRLF ends the line and isn't part of it.
+    const end = next > start && text[next - 1] === "\r" ? next - 1 : next;
+    const units = end - start;
+
+    // UTF-8 spends one to three octets per UTF-16 code unit, so only a
+    // line between the two bounds needs measuring.
+    if (units > MAX_LINE_OCTETS) return true;
+    if (
+      units * 3 > MAX_LINE_OCTETS &&
+      Buffer.byteLength(text.slice(start, end), "utf8") > MAX_LINE_OCTETS
+    ) {
+      return true;
+    }
+    start = next + 1;
+  }
+  return false;
+}
+
+/**
+ * Shape `args` so Nodemailer emits the same parts `createEmailMessage`
+ * would: it sends whichever of `body` and `htmlBody` it is handed and
+ * ignores `mimeType`.
+ */
+function asNodemailerParts(args: EmailSendArgs): EmailSendArgs {
+  switch (resolveMimeType(args)) {
+    case "multipart/alternative":
+      return { ...args, htmlBody: args.htmlBody || args.body };
+    case "text/html":
+      return { ...args, body: "", htmlBody: args.htmlBody || args.body };
+    default:
+      return { ...args, htmlBody: undefined };
+  }
+}
+
 /**
  * Assemble + base64url-encode the RFC 822 representation of a
- * message. Picks the Nodemailer pipeline when the message carries
- * attachments (multipart MIME assembly is non-trivial) and the
- * lighter `createEmailMessage` path otherwise. Extracted so the
- * `update_draft` handler can produce the exact same encoded payload
- * `sendOrDraftEmail` would have produced — Gmail's
- * `users.drafts.update` takes the same `{ raw, threadId? }` shape as
- * `users.messages.send` / `users.drafts.create`.
+ * message, the `raw` that `users.messages.send`, `users.drafts.create`,
+ * and `users.drafts.update` all take. Picks the Nodemailer pipeline
+ * when the message carries attachments (multipart MIME assembly is
+ * non-trivial) or a body line too long to send unencoded, and the
+ * lighter `createEmailMessage` path otherwise.
  */
 export async function buildEncodedRawMessage(args: EmailSendArgs): Promise<string> {
-  const message =
-    args.attachments && args.attachments.length > 0
-      ? await createEmailWithNodemailer(args)
-      : createEmailMessage(args);
-  return Buffer.from(message)
-    .toString("base64")
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  let message: string;
+  if (args.attachments && args.attachments.length > 0) {
+    message = await createEmailWithNodemailer(args);
+  } else if (hasOverlongLine(args.body) || hasOverlongLine(args.htmlBody)) {
+    message = await createEmailWithNodemailer(asNodemailerParts(args));
+  } else {
+    message = createEmailMessage(args);
+  }
+  return Buffer.from(message).toString("base64url");
 }
 
 /**

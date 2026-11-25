@@ -23,6 +23,7 @@ import type { gmail_v1 } from "googleapis";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createServer } from "../server.js";
+import { MAX_LINE_OCTETS } from "../email-send.js";
 import { resetRateLimitHistory } from "../rate-limit.js";
 import { resetJailDirCache } from "../utl.js";
 
@@ -110,7 +111,9 @@ interface MockGmailOpts {
   existingLabels?: Array<{ id: string; name: string; type?: string }>;
   /**
    * Body bytes returned by `gmail.users.messages.get`'s `text/plain`
-   * MIME part for the `read_email` truncation tests.
+   * MIME part for the `read_email` truncation tests. An empty string
+   * drops the part, which with `messageBodyHtml` makes an HTML-only
+   * message.
    */
   messageBodyText?: string;
   /**
@@ -430,10 +433,14 @@ function mockGmail(opts: MockGmailOpts = {}): {
                   : []),
               ],
               parts: [
-                {
-                  mimeType: "text/plain",
-                  body: { size: bodyText.length, data: bodyB64 },
-                },
+                ...(bodyText === ""
+                  ? []
+                  : [
+                      {
+                        mimeType: "text/plain",
+                        body: { size: bodyText.length, data: bodyB64 },
+                      },
+                    ]),
                 ...htmlParts,
                 ...attParts,
               ],
@@ -785,6 +792,69 @@ function mockGmail(opts: MockGmailOpts = {}): {
     },
   } as unknown as gmail_v1.Gmail;
   return { client, calls };
+}
+
+interface RawParts {
+  /** The whole message as sent, headers included. */
+  message: string;
+  text?: string;
+  html?: string;
+}
+
+/**
+ * Decode a `requestBody.raw` payload into its text/plain and text/html
+ * bodies, undoing the quoted-printable or base64 transfer encoding
+ * Nodemailer applies. A message without a part of a type leaves that
+ * field undefined.
+ */
+function decodeRawParts(raw: string): RawParts {
+  const message = Buffer.from(raw, "base64url").toString("utf-8");
+  const parts: RawParts = { message };
+
+  const walk = (entity: string): void => {
+    const split = /\r?\n\r?\n/.exec(entity);
+    const head = (split ? entity.slice(0, split.index) : entity).replace(/\r?\n[ \t]+/g, " ");
+    const body = split ? entity.slice(split.index + split[0].length) : "";
+    const header = (name: string): string =>
+      new RegExp(`^${name}:\\s*(.*)$`, "im").exec(head)?.[1] ?? "";
+
+    const contentType = header("Content-Type") || "text/plain";
+    const boundary = /boundary="?([^";]+)"?/i.exec(contentType)?.[1];
+    if (boundary) {
+      for (const chunk of body.split(`--${boundary}`).slice(1)) {
+        if (!chunk.startsWith("--")) walk(chunk.replace(/^\r?\n/, ""));
+      }
+      return;
+    }
+
+    const encoding = header("Content-Transfer-Encoding").toLowerCase();
+    let decoded = body;
+    if (encoding === "base64") {
+      decoded = Buffer.from(body, "base64").toString("utf-8");
+    } else if (encoding === "quoted-printable") {
+      const bytes = body
+        .replace(/=\r?\n/g, "")
+        .replace(/=([0-9A-F]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+      decoded = Buffer.from(bytes, "latin1").toString("utf-8");
+    }
+
+    if (/^text\/html/i.test(contentType)) parts.html ??= decoded;
+    else if (/^text\/plain/i.test(contentType)) parts.text ??= decoded;
+  };
+
+  walk(message);
+  return parts;
+}
+
+/** The decoded parts of the `index`-th message handed to `messages.send`. */
+function sentParts(fix: ConnectedFixture, index = 0): RawParts {
+  const sent = fix.calls.messageSend[index] as { requestBody: { raw: string } };
+  return decodeRawParts(sent.requestBody.raw);
+}
+
+/** The longest line of a sent message, in octets. */
+function longestLineOctets(message: string): number {
+  return Math.max(...message.split(/\r?\n/).map((line) => Buffer.byteLength(line, "utf8")));
 }
 
 interface ConnectedFixture {
@@ -1866,6 +1936,50 @@ describe("PR #7 registrars — send_email / draft_email (messaging.ts)", () => {
     });
   });
 
+  it("send_email encodes an HTML line past 998 octets instead of sending it raw", async () => {
+    await withFix(["gmail.send"], async (fix) => {
+      const link = "https://example.com/report/42";
+      const htmlBody = `<p>${"wide ".repeat(300)}<a href="${link}">Open — report</a></p>`;
+      const result = (await fix.client.callTool({
+        name: "send_email",
+        arguments: {
+          to: ["bob@example.com"],
+          subject: "Long HTML line",
+          body: "Short text.",
+          htmlBody,
+          mimeType: "multipart/alternative",
+          from: "me@example.com",
+        },
+      })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+      expect(result.isError).toBeFalsy();
+      const parts = sentParts(fix);
+      expect(longestLineOctets(parts.message)).toBeLessThanOrEqual(MAX_LINE_OCTETS);
+      expect(parts.html?.trim()).toBe(htmlBody);
+      expect(parts.text?.trim()).toBe("Short text.");
+    });
+  });
+
+  it("send_email encodes a text line past 998 octets and adds no HTML part", async () => {
+    await withFix(["gmail.send"], async (fix) => {
+      const body = `${"wide ".repeat(300)}https://example.com/report/42`;
+      const result = (await fix.client.callTool({
+        name: "send_email",
+        arguments: {
+          to: ["bob@example.com"],
+          subject: "Long text line",
+          body,
+          htmlBody: "<p>dropped, as the default text/plain type drops it</p>",
+          from: "me@example.com",
+        },
+      })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+      expect(result.isError).toBeFalsy();
+      const parts = sentParts(fix);
+      expect(longestLineOctets(parts.message)).toBeLessThanOrEqual(MAX_LINE_OCTETS);
+      expect(parts.text?.trim()).toBe(body);
+      expect(parts.html).toBeUndefined();
+    });
+  });
+
   it("draft_email routes through gmail.users.drafts.create instead of messages.send", async () => {
     await withFix(["gmail.compose"], async (fix) => {
       const result = (await fix.client.callTool({
@@ -2357,6 +2471,11 @@ describe("PR #7 registrars — reply_to_email (sender-only)", () => {
 });
 
 describe("PR #7 registrars — forward_email", () => {
+  // Long enough that `pickBody` reads it as the message, not a stub.
+  const PLAIN_VERSION =
+    "The plain version of the quarterly update, written out in full so that a reader " +
+    "without an HTML client still gets every figure and every date in the message.";
+
   it("fetches the source, builds Fwd: subject + quoted body, and sends to the new recipients", async () => {
     await withFix(["gmail.send", "gmail.readonly"], async (fix) => {
       const result = (await fix.client.callTool({
@@ -2441,6 +2560,163 @@ describe("PR #7 registrars — forward_email", () => {
         .join("\n\n");
       expect(bodyStart.startsWith("---------- Forwarded message ---------")).toBe(true);
     });
+  });
+
+  it("never reports success for an HTML-only source whose content the forward left out", async () => {
+    const link = "https://example.com/open-info-request/42";
+    await withFix(
+      ["gmail.send", "gmail.readonly"],
+      async (fix) => {
+        const result = (await fix.client.callTool({
+          name: "forward_email",
+          arguments: {
+            messageId: "msg_html_only",
+            to: ["carol@example.com"],
+            body: "FYI — see below.",
+          },
+        })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(result.isError).toBeFalsy();
+        expect(result.content[0]?.text).not.toContain("quoted block is empty");
+        expect(fix.calls.messageSend).toHaveLength(1);
+        const parts = sentParts(fix);
+
+        // The HTML part carries the source as it was, under the
+        // escaped preface and attribution lines.
+        expect(parts.html).toContain(`<a href="${link}">View Open Info Request</a>`);
+        expect(parts.html).toContain("<p>FYI — see below.</p>");
+        expect(parts.html).toContain("From: Alice &lt;alice@example.com&gt;");
+
+        // The plain-text part is the same message for a reader
+        // without HTML: preface, attribution, and the link's address.
+        expect(parts.text).toContain("FYI — see below.");
+        expect(parts.text).toContain("---------- Forwarded message ---------");
+        expect(parts.text).toContain(`View Open Info Request <${link}>`);
+      },
+      {
+        messageBodyText: "",
+        messageBodyHtml: `<p>More information required.</p><a href="${link}">View Open Info Request</a>`,
+      },
+    );
+  });
+
+  it("quotes the HTML of a source that has both parts, and its own text in the plain part", async () => {
+    await withFix(
+      ["gmail.send", "gmail.readonly"],
+      async (fix) => {
+        const result = (await fix.client.callTool({
+          name: "forward_email",
+          arguments: { messageId: "msg_both_parts", to: ["carol@example.com"] },
+        })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(result.isError).toBeFalsy();
+        const parts = sentParts(fix);
+        expect(parts.html).toContain(
+          "<p>The <b>formatted</b> version of the quarterly update.</p>",
+        );
+        expect(parts.text).toContain(PLAIN_VERSION);
+        expect(parts.text).not.toContain("formatted");
+      },
+      {
+        messageBodyText: PLAIN_VERSION,
+        messageBodyHtml: "<p>The <b>formatted</b> version of the quarterly update.</p>",
+      },
+    );
+  });
+
+  it("refuses a source whose HTML shows a reader nothing, and sends nothing", async () => {
+    await withFix(
+      ["gmail.send", "gmail.readonly"],
+      async (fix) => {
+        const result = (await fix.client.callTool({
+          name: "forward_email",
+          arguments: {
+            messageId: "msg_style_only",
+            to: ["carol@example.com"],
+            body: "FYI — see below.",
+          },
+        })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(result.isError).toBe(true);
+        expect(result.content[0]?.text).toContain(
+          "Forward not sent: the source message has no text or HTML body to quote.",
+        );
+        expect(result.content[0]?.text).toContain("download_attachment");
+        expect(fix.calls.messageSend).toHaveLength(0);
+      },
+      {
+        messageBodyText: "",
+        messageBodyHtml: "<style>p { margin: 0 !important; }</style><div> &nbsp; </div>",
+      },
+    );
+  });
+
+  it("quotes the source's own text when its HTML shows a reader nothing", async () => {
+    await withFix(
+      ["gmail.send", "gmail.readonly"],
+      async (fix) => {
+        const result = (await fix.client.callTool({
+          name: "forward_email",
+          arguments: { messageId: "msg_text_and_empty_html", to: ["carol@example.com"] },
+        })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(result.isError).toBeFalsy();
+        expect(fix.calls.messageSend).toHaveLength(1);
+        const parts = sentParts(fix);
+        expect(parts.text).toContain("Please see the chart below.");
+        expect(parts.html).toBeUndefined();
+      },
+      {
+        // Short text beside long HTML is what `pickBody` reads as a stub.
+        messageBodyText: "Please see the chart below.",
+        messageBodyHtml: `<style>${"p { margin: 0 !important; } ".repeat(12)}</style><img src="cid:chart.png">`,
+      },
+    );
+  });
+
+  it("send_email keeps a CRLF body of 998-octet lines on the unencoded path", async () => {
+    await withFix(["gmail.send"], async (fix) => {
+      const line = "a".repeat(MAX_LINE_OCTETS);
+      await fix.client.callTool({
+        name: "send_email",
+        arguments: {
+          to: ["bob@example.com"],
+          subject: "Lines at the limit",
+          body: `${line}\r\n${line}`,
+          from: "me@example.com",
+        },
+      });
+      const sent = fix.calls.messageSend[0] as { requestBody: { raw: string } };
+      const message = Buffer.from(sent.requestBody.raw, "base64url").toString("utf-8");
+      expect(message).toContain("Content-Transfer-Encoding: 7bit");
+      expect(message).toContain(`${line}\r\n${line}`);
+    });
+  });
+
+  it("sends a bodiless source when the caller passes attachments, and says the quote is empty", async () => {
+    await withFix(
+      ["gmail.send", "gmail.readonly"],
+      async (fix) => {
+        const pdfPath = join(attachmentDir, "carried-over.pdf");
+        writeFileSync(pdfPath, "%PDF-1.4\n%fake pdf payload for the test\n");
+
+        const result = (await fix.client.callTool({
+          name: "forward_email",
+          arguments: {
+            messageId: "msg_attachment_only",
+            to: ["carol@example.com"],
+            attachments: [pdfPath],
+          },
+        })) as { content: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(result.isError).toBeFalsy();
+        expect(result.content[0]?.text).toContain("Forward sent successfully");
+        expect(result.content[0]?.text).toContain(
+          "Note: the source message has no body, so the quoted block is empty.",
+        );
+        expect(fix.calls.messageSend).toHaveLength(1);
+        const parts = sentParts(fix);
+        expect(parts.text).toContain("---------- Forwarded message ---------");
+        expect(parts.html).toBeUndefined();
+        expect(parts.message).toContain("carried-over.pdf");
+      },
+      { messageBodyText: "" },
+    );
   });
 });
 

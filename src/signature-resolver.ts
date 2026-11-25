@@ -23,6 +23,7 @@
  */
 
 import type { gmail_v1 } from "googleapis";
+import { textToHtml } from "./html.js";
 
 // Per-client cache: Map<sendAsEmail | "__default__", htmlSignature | "">
 // Empty string means "fetched, no signature configured" — distinct from
@@ -181,24 +182,16 @@ export function injectSignature(
   }
 
   // Plain-text-only: promote to HTML, keep the plain text as the
-  // text/plain alternative. Each blank-line-separated chunk becomes a
-  // <p>; trailing newlines inside a paragraph become <br>. This is a
-  // minimal converter — anything fancier (Markdown, lists) should be
-  // expressed as htmlBody by the caller.
-  const escaped = escapeHtml(args.body);
-  const paragraphs = escaped
-    .split(/\n{2,}/)
-    .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-    .join("");
-  args.htmlBody = `${paragraphs}<br>--<br>${wrapped}`;
+  // text/plain alternative.
+  args.htmlBody = `${textToHtml(args.body)}<br>--<br>${wrapped}`;
   args.mimeType = "multipart/alternative";
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+/**
+ * Rewrites `SIGNATURE_MARKER` in HTML quoted from another message, so
+ * `injectSignature` still signs a message that quotes mail this server
+ * sent earlier.
+ */
+export function neutralizeSignatureMarker(html: string): string {
+  return html.replaceAll(SIGNATURE_MARKER, 'data-gmail-mcp-signature="quoted"');
 }
